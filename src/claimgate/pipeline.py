@@ -23,6 +23,7 @@ from claimgate.baselines import bosch_tokens
 from claimgate.data import ROOT, Example
 from claimgate.decide import SentenceModel, contradiction_gate, margin
 from claimgate.features import sentence_features
+from claimgate.text import sentences
 
 MODEL_PATH = ROOT / "artifacts" / "claimgate_model.joblib"
 _SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"(])|\n+")
@@ -96,7 +97,10 @@ class ClaimGate:
                 verdict = "SUPPORTED"
                 proof.append(f"entailed by the evidence window (p={row.e_win_max:.2f})")
             review = (not bad) and (not gate[j]) and float(margin(r, self.threshold)) < self.band
-            out.append(ClaimVerdict(claim, verdict, r, review, str(row.best_evidence), proof))
+            shown = str(row.best_evidence)
+            if bad:  # show the evidence sentence holding the conflicting number, not the best-entailment window
+                shown = next((x for x in sentences(evidence) if bad[0].against and bad[0].against in x), shown)
+            out.append(ClaimVerdict(claim, verdict, r, review, shown, proof))
         answer_risk = float(np.max([c.risk for c in out]))
         if any(c.verdict != "SUPPORTED" and not c.needs_review for c in out):
             overall = "BLOCK"

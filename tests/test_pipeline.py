@@ -50,6 +50,7 @@ def test_supported_and_contradicted(gate):
     assert [c.verdict for c in rep.claims] == ["SUPPORTED", "CONTRADICTED"]
     assert rep.verdict == "BLOCK"
     assert any("difference" in p for p in rep.claims[1].proof)
+    assert rep.claims[1].evidence == "Tighten the lug nuts to 130 ft-lb."
 
 
 def test_converted_value_is_not_contradicted(gate):

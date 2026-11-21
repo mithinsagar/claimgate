@@ -72,15 +72,15 @@ const EXAMPLE = {
     "tire placard on the driver's side B-pillar. Do not exceed the maximum inflation pressure molded into the tire sidewall. " +
     "The spare tire is for temporary use only and should not be driven above 50 mph.",
   question: "How do I put the wheel back on and what should I check afterwards?",
-  answer: "Tighten the lug nuts in a star pattern to 176 N·m. Check the torque again after the first 25 miles. " +
-    "The spare tire can be driven at up to 70 mph. Check the tire pressure once a month when the tires are cold. " +
-    "Rotate your tires every 5,000 miles to extend their life."
+  answer: "Tighten the lug nuts in a star pattern to 176 N·m. The spare tire can be driven at up to 70 mph. " +
+    "Check the tire pressure once a month when the tires are hot. Rotate your tires every 5,000 miles to extend their life."
 };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const LABEL = {SUPPORTED: "Supported", CONTRADICTED: "Contradicted", NOT_IN_EVIDENCE: "Not in evidence"};
 const OVERALL = {PASS: "Answer passes: every claim is supported", BLOCK: "Answer blocked: at least one claim is not supported", REVIEW: "Needs review: some claims are too close to call"};
-$("example").onclick = () => { for (const k of ["evidence", "question", "answer"]) $(k).value = EXAMPLE[k]; };
+const loadExample = () => { for (const k of ["evidence", "question", "answer"]) $(k).value = EXAMPLE[k]; };
+$("example").onclick = loadExample;
 $("go").onclick = async () => {
   const body = {evidence: $("evidence").value, answer: $("answer").value, question: $("question").value};
   if (!body.evidence.trim() || !body.answer.trim()) { $("status").textContent = "Evidence and answer are required."; return; }
@@ -93,11 +93,12 @@ $("go").onclick = async () => {
     $("result").innerHTML = `<div class="banner ${d.verdict}"><span>${OVERALL[d.verdict]}</span><span>risk ${(100 * d.answer_risk).toFixed(0)}%</span></div>` +
       d.claims.map((c) => `<div class="claim"><div class="claim-head"><div>${esc(c.claim)}</div><span class="chip ${c.verdict}">${LABEL[c.verdict]}</span></div>
         <div class="risk">risk ${(100 * c.risk).toFixed(0)}%${c.needs_review ? " · close to the threshold, review suggested" : ""}</div>
-        <details><summary>Proof</summary><ul>${c.proof.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+        <details${location.hash === "#example" ? " open" : ""}><summary>Proof</summary><ul>${c.proof.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
         <div class="ev">${esc(c.evidence)}</div></details></div>`).join("");
   } catch (e) { $("status").textContent = "Error: " + e.message; }
   finally { $("go").disabled = false; }
 };
+if (location.hash === "#example") { loadExample(); $("go").click(); }
 </script>
 </body>
 </html>

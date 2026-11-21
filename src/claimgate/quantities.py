@@ -102,6 +102,7 @@ class QuantityVerdict:
     quantity: Quantity
     status: str            # supported | mismatch | unit_mismatch | absent
     proof: str
+    against: str = ""      # the evidence quantity it was compared with, if any
 
 
 _EV_SENT = re.compile(r"(?<=[.!?])\s+|\n+")
@@ -155,13 +156,13 @@ def check(claim: str, evidence: str) -> list[QuantityVerdict]:
             e = next(e for e in comparable if _close(e.value, q.value))
             conv = e.magnitude_in(q.unit)
             out.append(QuantityVerdict(q, "unit_mismatch", f"claim '{q.text}' but evidence '{e.text}', which is {conv:.3g} {_unit_text(q)}: "
-                                                           "same number, different unit"))
+                                                           "same number, different unit", e.text))
         elif comparable:
             e = comparable[0]
             conv = e.magnitude_in(q.unit)
             diff = abs(conv - q.value) / max(abs(conv), 1e-9) if conv is not None else float("nan")
             said = f"'{e.text}'" if e.unit == q.unit else f"'{e.text}', which is {conv:.3g} {_unit_text(q)}"
-            out.append(QuantityVerdict(q, "mismatch", f"claim '{q.text}' but evidence says {said} ({diff:.0%} difference)"))
+            out.append(QuantityVerdict(q, "mismatch", f"claim '{q.text}' but evidence says {said} ({diff:.0%} difference)", e.text))
         elif same_value:
             out.append(QuantityVerdict(q, "supported", f"value {q.value:g} appears in the evidence without a comparable unit"))
         else:
