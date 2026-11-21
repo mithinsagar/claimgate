@@ -1,36 +1,46 @@
-"""DelucionQA evaluation: train on train, choose every threshold on dev, report test once.
+"""DelucionQA evaluation. Models and design choices on train (grouped cross-validation), thresholds on dev, test once.
 
-Writes results/delucionqa.json and results/delucionqa.md. Test numbers are reported on all 671 test answers and on the
-630 whose contexts were reconstructed without any unknown word.
+Decision rules, fixed before looking at test:
+  * signals: an extra signal (HHEM, MiniCheck, fine-tuned verifier) joins the model if it raises out-of-fold answer AUC on
+    train by at least 0.002;
+  * rule-made contradictions of train sentences are added to the training rows unless they cost more than 0.005
+    out-of-fold answer AUC on the real train answers;
+  * the contradiction gate stays if it catches more of the held-out-fold rule-made contradictions and costs at most
+    0.5 points of dev macro F1.
+Writes results/delucionqa.{json,md}, the shipped zero-shot model (src/claimgate/assets) and the full model (models/).
 """
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from claimgate.baselines import sim_overlap_predict  # noqa: E402
 from claimgate.data import ROOT, load_delucionqa  # noqa: E402
-from claimgate.decide import SentenceModel, abstention_curve, answer_scores, gated_risk, review_band, tune_threshold  # noqa: E402
-from claimgate.features import FEATURES  # noqa: E402
-from claimgate.metrics import (  # noqa: E402
-    bootstrap_macro_f1,
-    expected_calibration_error,  # noqa: E402
-    macro_f1,
-    paired_bootstrap,
-    report,
+from claimgate.decide import (  # noqa: E402
+    SentenceModel,
+    abstention_curve,
+    answer_scores,
+    contradiction_gate,
+    oof_risk,
+    review_band,
+    tune_threshold,
 )
-from claimgate.pipeline import MODEL_PATH, ClaimGate  # noqa: E402
+from claimgate.features import FEATURES  # noqa: E402
+from claimgate.metrics import bootstrap_macro_f1, expected_calibration_error, macro_f1, paired_bootstrap, report  # noqa: E402
+from claimgate.pipeline import FULL_MODEL_PATH, MODEL_PATH, ClaimGate  # noqa: E402
+from claimgate.signals import load_scores  # noqa: E402
 
 PUBLISHED = {"Sim-overlap": 71.09, "Sim-hybrid": 70.81, "Sim-cosine": 69.45, "Keyword-match": 52.77}
-NLI_COLS = ["e_win_max", "c_at_best", "n_at_best", "c_win_max", "e_win_mean", "e_chunk_max", "c_chunk_max", "n_chunk_min"]
+NLI_COLS = ["e_win_max", "c_at_best", "n_at_best", "c_win_max", "e_win_mean", "e_chunk_max", "c_chunk_max", "n_chunk_min", "e_prev", "e_next"]
 Q_COLS = ["q_n", "q_supported", "q_mismatch", "q_unit_mismatch", "q_absent"]
+TAG = "deberta-v3-large-nli"
 
 
 def with_llm(df: pd.DataFrame, split: str) -> pd.DataFrame:
@@ -44,89 +54,155 @@ def with_llm(df: pd.DataFrame, split: str) -> pd.DataFrame:
     return out if out.llm_yes.notna().all() else df
 
 
-def unsup_score(df: pd.DataFrame, use_quantities: bool) -> np.ndarray:
-    s = 1 - np.maximum(df.e_win_max, df.e_chunk_max).to_numpy()
-    if use_quantities:
-        s = np.where((df.q_mismatch + df.q_unit_mismatch).to_numpy() > 0, 1.0, s)
-    return s
+def load(split: str) -> pd.DataFrame:
+    df = pd.read_parquet(ROOT / "artifacts" / "features" / f"{split}_{TAG}.parquet")
+    return with_llm(load_scores(split, df), split)
 
 
-def evaluate(name: str, dev: pd.DataFrame, test: pd.DataFrame, dev_s: np.ndarray, test_s: np.ndarray, complete: set) -> dict:
+def answer_auc(df: pd.DataFrame, risk: np.ndarray) -> float:
+    a = answer_scores(df, risk)
+    return float(roc_auc_score(a.label, a.score))
+
+
+def dev_f1(dev: pd.DataFrame, risk: np.ndarray) -> float:
+    a = answer_scores(dev, risk)
+    return tune_threshold(a.label.to_numpy(), a.score.to_numpy())[1]
+
+
+def evaluate(name, dev, test, dev_s, test_s, complete, unseen) -> dict:
     da, ta = answer_scores(dev, dev_s), answer_scores(test, test_s)
     t, dev_f = tune_threshold(da.label.to_numpy(), da.score.to_numpy())
-    y, p = ta.label.to_numpy(), (ta.score.to_numpy() >= t).astype(int)
-    mask = ta.index.isin(complete)
-    r = {"system": name, "threshold": t, "dev_macro_f1": dev_f, "test": report(y, p, ta.score.to_numpy()),
-         "test_ci95": bootstrap_macro_f1(y, p), "test_complete_contexts": report(y[mask], p[mask]),
-         "abstention": abstention_curve(y, ta.score.to_numpy(), t)}
-    r["_pred"] = pd.Series(p, index=ta.index)
-    return r
+    y, s = ta.label.to_numpy(), ta.score.to_numpy()
+    p = (s >= t).astype(int)
+    m_c, m_u = ta.index.isin(complete), ta.index.isin(unseen)
+    return {"system": name, "threshold": t, "dev_macro_f1": dev_f, "test": report(y, p, s), "test_ci95": bootstrap_macro_f1(y, p),
+            "test_complete_contexts": report(y[m_c], p[m_c]), "test_unseen_contexts": report(y[m_u], p[m_u]),
+            "abstention": abstention_curve(y, s, t), "_pred": pd.Series(p, index=ta.index)}
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--tag", default="deberta-v3-large-nli")
-    args = ap.parse_args()
-    fdir = ROOT / "artifacts" / "features"
-    tr, dv, te = (with_llm(pd.read_parquet(fdir / f"{s}_{args.tag}.parquet"), s) for s in ("train", "dev", "test"))
-    has_llm = all("llm_yes" in d for d in (tr, dv, te))
+    tr, aug, dv, te = load("train"), load("train_aug"), load("dev"), load("test")
+    aug = aug.assign(target=1, answer_label=1)
     complete = set(te.loc[te.coverage == 1.0, "uid"])
-    results = []
+    train_ctx = {e.context for e in load_delucionqa("train")}
+    unseen = {e.uid for e in load_delucionqa("test") if e.context not in train_ctx}
+    signals = [c for c in ("hhem", "minicheck", "ft_sup") if all(c in d and d[c].notna().all() for d in (tr, aug, dv, te))]
+    print("signals available:", signals)
 
+    # ---- model selection on train only ----
+    sel: dict = {}
+    real_groups = tr.uid.to_numpy()
+    chosen = list(FEATURES)
+    sel["zero_shot_features_auc"] = current = answer_auc(tr, oof_risk(tr, chosen, real_groups))
+    for sig in [s for s in signals if s != "ft_sup"]:
+        auc = answer_auc(tr, oof_risk(tr, chosen + [sig], real_groups))
+        sel[f"+{sig}_auc"] = auc
+        if auc >= current + 0.002:
+            chosen, current = chosen + [sig], auc
+    zero_shot_feats, full_feats = list(chosen), list(chosen)
+    if "ft_sup" in signals:
+        auc = answer_auc(tr, oof_risk(tr, chosen + ["ft_sup", "ft_con"], real_groups))
+        sel["+fine_tuned_verifier_auc"] = auc
+        if auc >= current + 0.002:
+            full_feats = chosen + ["ft_sup", "ft_con"]
+    both = pd.concat([tr, aug], ignore_index=True)
+    both_groups = np.concatenate([real_groups, aug.source_uid.to_numpy()])
+    real = np.r_[np.ones(len(tr), bool), np.zeros(len(aug), bool)]
+    r_both = oof_risk(both, full_feats, both_groups)
+    sel["real_rows_only_auc"] = answer_auc(tr, oof_risk(tr, full_feats, real_groups))
+    sel["with_rule_made_contradictions_auc"] = answer_auc(tr, r_both[real])
+    use_aug = sel["with_rule_made_contradictions_auc"] >= sel["real_rows_only_auc"] - 0.005
+    sel["use_rule_made_contradictions"] = use_aug
+    a_cv = answer_scores(tr, r_both[real])
+    t_cv, _ = tune_threshold(a_cv.label.to_numpy(), a_cv.score.to_numpy())
+    sel["rule_made_caught_without_gate"] = float((r_both[~real] >= t_cv).mean())
+    sel["rule_made_caught_with_gate"] = float(((r_both[~real] >= t_cv) | contradiction_gate(aug)).mean())
+
+    fit_df, fit_groups, fit_mask = (both, both_groups, real) if use_aug else (tr, real_groups, None)
+
+    def fit(feats):
+        return SentenceModel.fit(fit_df, feats, groups=fit_groups, calibrate_on=fit_mask)
+
+    def risk(m, d, gate):
+        r = m.predict_proba(d)
+        return np.where(contradiction_gate(d), 1.0, r) if gate else r
+
+    full = fit(full_feats)
+    sel["dev_macro_f1_with_gate"] = dev_f1(dv, risk(full, dv, True))
+    sel["dev_macro_f1_without_gate"] = dev_f1(dv, risk(full, dv, False))
+    use_gate = sel["rule_made_caught_with_gate"] > sel["rule_made_caught_without_gate"] and \
+        sel["dev_macro_f1_with_gate"] >= sel["dev_macro_f1_without_gate"] - 0.005
+    sel.update({"use_gate": use_gate, "zero_shot_model_features": zero_shot_feats, "full_model_features": full_feats})
+    print("design decisions:", {k: (round(v, 4) if isinstance(v, float) else v) for k, v in sel.items() if not isinstance(v, list)})
+
+    # ---- test, once per system ----
+    results = []
     dev_ex, test_ex = load_delucionqa("dev"), load_delucionqa("test")
     grid = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     t_so = max(grid, key=lambda t: macro_f1([e.label for e in dev_ex], sim_overlap_predict(dev_ex, t)))
     so = pd.Series(sim_overlap_predict(test_ex, t_so), index=[e.uid for e in test_ex])
-    y_so = pd.Series([e.label for e in test_ex], index=so.index)
-    mask = so.index.isin(complete)
-    results.append({"system": "Sim-overlap (Bosch method, our run)", "threshold": t_so, "test": report(y_so, so),
-                    "test_ci95": bootstrap_macro_f1(y_so, so), "test_complete_contexts": report(y_so[mask], so[mask]), "_pred": so})
+    y_all = pd.Series([e.label for e in test_ex], index=so.index)
+    m_c, m_u = so.index.isin(complete), so.index.isin(unseen)
+    results.append({"system": "Sim-overlap (Bosch method, our run)", "threshold": t_so, "test": report(y_all, so), "test_ci95": bootstrap_macro_f1(y_all, so),
+                    "test_complete_contexts": report(y_all[m_c], so[m_c]), "test_unseen_contexts": report(y_all[m_u], so[m_u]), "_pred": so})
 
-    results.append(evaluate("NLI zero-shot (DeBERTa-v3-large)", dv, te, unsup_score(dv, False), unsup_score(te, False), complete))
-    results.append(evaluate("NLI zero-shot + quantity checks", dv, te, unsup_score(dv, True), unsup_score(te, True), complete))
-    if has_llm:
-        results.append(evaluate("LLM judge zero-shot (Qwen2.5-7B-Instruct, 4-bit)", dv, te, 1 - dv.llm_yes.to_numpy(), 1 - te.llm_yes.to_numpy(), complete))
-    # The headline model was chosen by grouped 5-fold CV on train: adding the LLM judge as a feature did not raise
-    # answer-level AUC (0.8733 vs 0.8743) or F1, so it stays an ablation.
-    systems = [("ClaimGate", FEATURES, MODEL_PATH, True),
-               ("ClaimGate without contradiction gate", FEATURES, None, False),
-               ("ClaimGate without NLI", [f for f in FEATURES if f not in NLI_COLS], None, False),
-               ("ClaimGate without quantity checks", [f for f in FEATURES if f not in Q_COLS], None, True)]
-    if has_llm:
-        systems.append(("ClaimGate + LLM judge as a feature", FEATURES + ["llm_yes"], None, True))
-    for name, feats, path, gate in systems:
-        m = SentenceModel.fit(tr, feats)
-        risk = (lambda d, m=m: gated_risk(m, d)) if gate else m.predict_proba
-        r = evaluate(name, dv, te, risk(dv), risk(te), complete)
+    def zs(d):
+        return 1 - np.maximum(d.e_win_max, d.e_chunk_max).to_numpy()
+    results.append(evaluate("NLI zero-shot (DeBERTa-v3-large)", dv, te, zs(dv), zs(te), complete, unseen))
+    for col, name in (("hhem", "HHEM-2.1-Open zero-shot"), ("minicheck", "MiniCheck-Flan-T5-Large zero-shot"),
+                      ("llm_yes", "LLM judge zero-shot (Qwen2.5-7B-Instruct, 4-bit)"), ("ft_sup", "Fine-tuned verifier alone")):
+        if col in dv and col in te and dv[col].notna().all() and te[col].notna().all():
+            results.append(evaluate(name, dv, te, 1 - dv[col].to_numpy(), 1 - te[col].to_numpy(), complete, unseen))
+
+    for name, feats, path in (("ClaimGate", full_feats, FULL_MODEL_PATH), ("ClaimGate, no fine-tuned network", zero_shot_feats, MODEL_PATH)):
+        m = full if feats == full_feats else fit(feats)
+        r = evaluate(name, dv, te, risk(m, dv, use_gate), risk(m, te, use_gate), complete, unseen)
         r["sentence_ece_test"] = expected_calibration_error(te.target, m.predict_proba(te))
+        r["review_band_logit"] = review_band(answer_scores(dv, risk(m, dv, use_gate)).score.to_numpy(), r["threshold"])
+        r["features"] = feats
         results.append(r)
-        if path:
-            r["review_band_logit"] = review_band(answer_scores(dv, risk(dv)).score.to_numpy(), r["threshold"])
-            ClaimGate(None, m, r["threshold"], r["review_band_logit"]).save(path)
+        ClaimGate(None, m, r["threshold"], r["review_band_logit"]).save(path)
+    for name, feats, gate in (("without contradiction gate", full_feats, not use_gate),
+                              ("without NLI features", [f for f in full_feats if f not in NLI_COLS], use_gate),
+                              ("without quantity features", [f for f in full_feats if f not in Q_COLS], use_gate),
+                              ("without rule-made contradictions in training", full_feats, use_gate)):
+        m = SentenceModel.fit(tr, feats) if name.endswith("training") else fit(feats)
+        r = evaluate(f"ClaimGate {name}", dv, te, risk(m, dv, gate), risk(m, te, gate), complete, unseen)
+        r["train_cv_answer_auc"] = answer_auc(tr, oof_risk(tr, feats, real_groups))
+        results.append(r)
+    if "llm_yes" in tr:
+        sel["+llm_judge_feature_auc"] = answer_auc(tr, oof_risk(tr, full_feats + ["llm_yes"], real_groups))
 
-    ref = results[0]["_pred"]
-    for r in results[1:]:
-        p = r["_pred"].reindex(ref.index)
-        r["vs_sim_overlap"] = paired_bootstrap(y_so.to_numpy(), p.to_numpy(), ref.to_numpy())
+    head = next(r for r in results if r["system"] == "ClaimGate")
+    idx = head["_pred"].index
+    y = y_all.reindex(idx).to_numpy()
+    mu = idx.isin(unseen)
+    for r in results:
+        if r is head:
+            continue
+        other = r["_pred"].reindex(idx).to_numpy()
+        r["claimgate_vs_this"] = paired_bootstrap(y, head["_pred"].to_numpy(), other)
+        r["claimgate_vs_this_unseen_contexts"] = paired_bootstrap(y[mu], head["_pred"].to_numpy()[mu], other[mu])
+
     out = ROOT / "results"
     out.mkdir(exist_ok=True)
-    clean = [{k: v for k, v in r.items() if k != "_pred"} for r in results]
-    (out / "delucionqa.json").write_text(json.dumps({"published_test_macro_f1": PUBLISHED, "results": clean}, indent=1))
-    lines = ["| System | Test macro F1 (671) | 95% CI | Complete contexts (630) | Hallucinated P / R | Test AUC | Dev macro F1 |",
+    clean = [{k: v for k, v in r.items() if not k.startswith("_")} for r in results]
+    meta = {"n_test": len(y_all), "n_unseen_contexts": len(unseen), "n_complete_contexts": len(complete)}
+    (out / "delucionqa.json").write_text(json.dumps({"published_test_macro_f1": PUBLISHED, "design_decisions": sel, **meta, "results": clean},
+                                                     indent=1, default=float))
+    lines = ["| System | Test macro F1 | 95% CI | Unseen contexts | Hallucinated P / R | Test AUC | p (ClaimGate not better) |",
              "|---|---|---|---|---|---|---|"]
     for k, v in PUBLISHED.items():
         lines.append(f"| {k} (published, Sadat et al. 2023) | {v:.2f} | | | | | |")
     for r in clean:
         t, ci = r["test"], r["test_ci95"]
         auc = f"{t['roc_auc']:.3f}" if "roc_auc" in t else ""
-        dev = f"{100 * r['dev_macro_f1']:.2f}" if "dev_macro_f1" in r else ""
-        lines.append(f"| {r['system']} | {100 * t['macro_f1']:.2f} | {100 * ci[0]:.1f} to {100 * ci[1]:.1f} | "
-                     f"{100 * r['test_complete_contexts']['macro_f1']:.2f} | {100 * t['hallucinated_precision']:.1f} / "
-                     f"{100 * t['hallucinated_recall']:.1f} | {auc} | {dev} |")
+        pv = f"{r['claimgate_vs_this']['p_a_not_better']:.3f}" if "claimgate_vs_this" in r else ""
+        unseen_f1 = 100 * r["test_unseen_contexts"]["macro_f1"]
+        lines.append(f"| {r['system']} | {100 * t['macro_f1']:.2f} | {100 * ci[0]:.1f} to {100 * ci[1]:.1f} | {unseen_f1:.2f} | "
+                     f"{100 * t['hallucinated_precision']:.1f} / {100 * t['hallucinated_recall']:.1f} | {auc} | {pv} |")
     (out / "delucionqa.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
-    for r in clean[1:]:
-        print(r["system"], "vs Sim-overlap:", {k: (round(v, 4) if isinstance(v, float) else v) for k, v in r["vs_sim_overlap"].items()})
 
 
 if __name__ == "__main__":

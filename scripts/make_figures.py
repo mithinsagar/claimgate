@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from claimgate.data import ROOT  # noqa: E402
 
 SURFACE, INK, INK2, GRID, MUTED = "#fcfcfb", "#0b0b0b", "#52514e", "#e6e5e0", "#b9b8b2"
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
+SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
 OUT = ROOT / "docs" / "figures"
 
 
@@ -38,6 +38,8 @@ def delucionqa():
     top = headline(d)["system"]
     rows = [(f"{k} (paper)", v, None, False) for k, v in d["published_test_macro_f1"].items()]
     for r in d["results"]:
+        if r["system"].startswith("ClaimGate without") or r["system"].startswith("ClaimGate with "):
+            continue  # ablations live in the table
         ci = r.get("test_ci95")
         rows.append((r["system"], 100 * r["test"]["macro_f1"], (100 * ci[0], 100 * ci[1]) if ci else None, r["system"] == top))
     rows.sort(key=lambda x: x[1])
@@ -66,8 +68,8 @@ def quantstress():
     d = json.loads(p.read_text())
     kinds = ["original", "converted", "value_shift", "unit_swap", "negation", "condition_swap"]
     labels = ["original\n(should pass)", "unit converted\n(should pass)", "value shifted", "unit swapped", "negation flipped", "condition swapped"]
-    colors = {"NLI zero-shot, no unit canonicalisation": SERIES[2], "NLI zero-shot": SERIES[1],
-              "ClaimGate without contradiction gate": SERIES[3], "ClaimGate": SERIES[0]}
+    colors = {"NLI zero-shot": SERIES[1], "HHEM-2.1-Open zero-shot": SERIES[2], "MiniCheck-Flan-T5-Large zero-shot": SERIES[3],
+              "ClaimGate, no fine-tuned network": SERIES[4], "ClaimGate": SERIES[0]}
     systems = [s for s in colors if s in d["flag_rate"]]
     fig, ax = plt.subplots(figsize=(10, 4.6), dpi=200)
     fig.patch.set_facecolor(SURFACE)
@@ -83,7 +85,7 @@ def quantstress():
     ax.set_ylabel("claims flagged (%)", color=INK2, fontsize=9)
     ax.set_ylim(0, 100)
     ax.axvline(1.5, color=GRID, linewidth=1)
-    ax.legend(frameon=False, fontsize=8.5, loc="upper center", bbox_to_anchor=(0.5, -0.16), ncols=4, labelcolor=INK)
+    ax.legend(frameon=False, fontsize=8.5, loc="upper center", bbox_to_anchor=(0.5, -0.16), ncols=3, labelcolor=INK)
     fig.tight_layout()
     fig.savefig(OUT / "quantstress.png", facecolor=SURFACE, bbox_inches="tight")
 

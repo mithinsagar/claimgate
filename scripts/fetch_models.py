@@ -10,6 +10,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -35,12 +36,22 @@ PARTS = 6
 BIG = 50_000_000
 
 
+def _get_json(url: str, tries: int = 60):
+    for i in range(tries):
+        try:
+            return json.load(urllib.request.urlopen(url, timeout=60))
+        except OSError:
+            if i == tries - 1:
+                raise
+            time.sleep(15)
+
+
 def listing(repo: str) -> dict[str, dict]:
     out, stack = {}, [""]
     while stack:
         sub = stack.pop()
         url = f"https://huggingface.co/api/models/{repo}/tree/main" + (f"/{sub}" if sub else "") + "?expand=true"
-        for x in json.load(urllib.request.urlopen(url, timeout=60)):
+        for x in _get_json(url):
             if x["type"] == "directory":
                 stack.append(x["path"])
             else:
@@ -48,7 +59,8 @@ def listing(repo: str) -> dict[str, dict]:
     return out
 
 
-def curl_range(url: str, dest: Path, start: int, end: int, attempts: int = 40) -> None:
+def curl_range(url: str, dest: Path, start: int, end: int, attempts: int = 2000) -> None:
+    """Fetch bytes start..end into dest, resuming after stalls or network outages (waits and retries, does not give up early)."""
     want = end - start + 1
     for _ in range(attempts):
         have = dest.stat().st_size if dest.exists() else 0
@@ -57,8 +69,10 @@ def curl_range(url: str, dest: Path, start: int, end: int, attempts: int = 40) -
         if have > want:
             dest.unlink()
             have = 0
-        subprocess.run(["curl", "-sfL", "--speed-limit", "200000", "--speed-time", "15", "-r", f"{start + have}-{end}", "-o", "-", url],
+        subprocess.run(["curl", "-sfL", "--speed-limit", "50000", "--speed-time", "30", "-r", f"{start + have}-{end}", "-o", "-", url],
                        stdout=open(dest, "ab"), check=False)
+        if (dest.stat().st_size if dest.exists() else 0) == have:
+            time.sleep(10)  # no progress: likely offline, wait before retrying
     raise SystemExit(f"failed range {start}-{end} of {url}")
 
 
