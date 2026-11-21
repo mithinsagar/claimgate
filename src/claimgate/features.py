@@ -11,7 +11,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from claimgate import quantities
+from claimgate import embed, quantities
 from claimgate.baselines import bosch_tokens, context_token_sentences, overlap_ratio
 from claimgate.data import Example
 from claimgate.text import content_words, context_for_nli, sentences, stem
@@ -82,7 +82,10 @@ def sentence_features(examples: list[Example], nli, canonical: bool = True) -> p
     probs = nli.score(all_pairs) if all_pairs else np.zeros((0, 3))
 
     rows = []
+    use_emb = embed.MODEL_DIR.exists()
     for ex, (wi, ci) in zip(examples, plan, strict=True):
+        emb_max, emb_top2 = embed.max_similarity(ex.sentences, sentences(context_for_nli(ex))) if use_emb else ([np.nan] * len(ex.sentences),) * 2
+        e_best = [float(probs[w][:, 0].max()) for w in wi]
         ctx_lower = ex.context
         ctx_stems = {stem(w) for w in content_words(ctx_lower)} | {stem(w) for w in content_words(ex.question)}
         ctx_toks = context_token_sentences(ex)
@@ -105,6 +108,8 @@ def sentence_features(examples: list[Example], nli, canonical: bool = True) -> p
                 "novel_frac": len(novel) / max(1, len(cw)), "novel_n": len(novel), "n_content": len(cw), "n_words": len(s.split()),
                 "hedge": len(HEDGES.findall(s)), "refusal": int(bool(REFUSAL.search(s))), "list_item": int(bool(LIST_ITEM.match(s))),
                 "yes_no": int(bool(re.match(r"^(yes|no)\b", s.strip(), re.I))), **q,
+                "emb_max": float(emb_max[j]), "emb_top2": float(emb_top2[j]),
+                "e_prev": e_best[j - 1] if j else 1.0, "e_next": e_best[j + 1] if j + 1 < n else 1.0,
                 "best_evidence": all_pairs[wi[j][best]][0], "claim_for_nli": all_pairs[wi[j][best]][1],
             })
     return pd.DataFrame(rows)
@@ -112,4 +117,4 @@ def sentence_features(examples: list[Example], nli, canonical: bool = True) -> p
 
 FEATURES = ["sent_idx", "n_sent", "rel_pos", "e_win_max", "c_at_best", "n_at_best", "c_win_max", "e_win_mean", "e_chunk_max",
             "c_chunk_max", "n_chunk_min", "overlap", "novel_frac", "novel_n", "n_content", "n_words", "hedge", "refusal", "list_item",
-            "yes_no", "q_n", "q_supported", "q_mismatch", "q_unit_mismatch", "q_absent"]
+            "yes_no", "q_n", "q_supported", "q_mismatch", "q_unit_mismatch", "q_absent", "emb_max", "emb_top2", "e_prev", "e_next"]

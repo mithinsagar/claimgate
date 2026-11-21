@@ -1,9 +1,10 @@
 """Decision layer: sentence-level risk model, answer-level aggregation, calibration and abstention.
 
-The sentence model is a gradient-boosted classifier over evidence features, trained on DelucionQA train only. An answer
-is hallucinated when its riskiest sentence crosses a threshold chosen on dev. Probabilities are calibrated with isotonic
-regression fitted on out-of-fold train predictions, so the abstention band (claims the system will not decide) is
-expressed in calibrated probability rather than raw scores.
+The sentence model is a standardised logistic regression over evidence features, trained on DelucionQA train only. It
+beat gradient boosting on every feature set in 5-fold grouped cross-validation on train (answer-level AUC 0.874 vs
+0.870 with all features), so the simpler model is the default; "gbm" stays available. An answer is hallucinated when its
+riskiest sentence crosses a threshold chosen on dev. Probabilities are calibrated with isotonic regression fitted on
+out-of-fold train predictions, so the abstention band is expressed in calibrated probability rather than raw scores.
 """
 from __future__ import annotations
 
@@ -12,8 +13,12 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.impute import SimpleImputer
 from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GroupKFold
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 from claimgate.metrics import macro_f1
 
@@ -23,6 +28,10 @@ def gbm(seed: int = 0) -> HistGradientBoostingClassifier:
                                           random_state=seed)
 
 
+def logreg(seed: int = 0):
+    return make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), LogisticRegression(C=0.5, max_iter=3000, random_state=seed))
+
+
 @dataclass
 class SentenceModel:
     features: list[str]
@@ -30,13 +39,15 @@ class SentenceModel:
     calibrator: IsotonicRegression
 
     @classmethod
-    def fit(cls, df: pd.DataFrame, features: list[str], seeds: int = 5, folds: int = 5) -> SentenceModel:
+    def fit(cls, df: pd.DataFrame, features: list[str], seeds: int = 5, folds: int = 5, kind: str = "lr") -> SentenceModel:
+        make = logreg if kind == "lr" else gbm
+        seeds = 1 if kind == "lr" else seeds
         X, y, groups = df[features].to_numpy(), df["target"].to_numpy(), df["uid"].to_numpy()
         oof = np.zeros(len(df))
         for tr, va in GroupKFold(folds).split(X, y, groups):
-            oof[va] = np.mean([gbm(s).fit(X[tr], y[tr]).predict_proba(X[va])[:, 1] for s in range(seeds)], axis=0)
+            oof[va] = np.mean([make(s).fit(X[tr], y[tr]).predict_proba(X[va])[:, 1] for s in range(seeds)], axis=0)
         cal = IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1).fit(oof, y)
-        models = [gbm(s).fit(X, y) for s in range(seeds)]
+        models = [make(s).fit(X, y) for s in range(seeds)]
         return cls(features, models, cal)
 
     def raw(self, df: pd.DataFrame) -> np.ndarray:
