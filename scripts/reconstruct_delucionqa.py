@@ -8,6 +8,8 @@ text. This script:
   2. aligns each DelucionQA context (id sequence) with the passages of the same question that have the same token
      pattern (same length and same positions of repeated ids), collecting id -> token votes,
   3. aligns near matches with difflib and accepts a new id -> token pair only if it keeps the alphabetical order,
+  3b. recovers more ids from the manual's own text: unknown ids between known neighbours are read off the places where
+     the same neighbours occur in the manual (used only if it recovers >= 99% of hidden known ids correctly),
   4. checks that the mapping has no conflicting votes and is strictly increasing in alphabetical order, which is what a
      sorted vocabulary implies (an independent check that the decoding is right),
   5. tries an order-based gap fill, but uses it only if it recovers >= 99% of hidden known ids correctly,
@@ -107,6 +109,67 @@ def fuzzy_rounds(rows, passages, mapping, rounds: int = 3) -> int:
     return total
 
 
+def manual_alignment(rows, mapping: dict, manual: list[str], max_run: int = 3, n_left: int = 3, n_right: int = 2) -> dict:
+    """Recover unknown ids by finding their known neighbours in the manual's own token stream.
+
+    For a run of up to `max_run` unknown ids with `n_left` known tokens on the left and `n_right` on the right, every place
+    in the manual where those neighbours occur with the same gap votes for the tokens in between. An id is assigned only when
+    all of its votes agree, the token is not already used by another id, and the assignment keeps the vocabulary in
+    alphabetical order.
+    """
+    index: dict[tuple, list[int]] = {}
+    for i in range(len(manual) - n_left + 1):
+        index.setdefault(tuple(manual[i:i + n_left]), []).append(i + n_left)
+    votes: dict[int, dict[str, int]] = {}
+    for r in rows:
+        toks = [mapping.get(a) for a in r["ctx"]]
+        i = 0
+        while i < len(toks):
+            if toks[i] is not None:
+                i += 1
+                continue
+            j = i
+            while j < len(toks) and toks[j] is None:
+                j += 1
+            run = j - i
+            left, right = toks[max(0, i - n_left):i], toks[j:j + n_right]
+            if run <= max_run and len(left) == n_left and None not in left and len(right) == n_right and None not in right:
+                for p in index.get(tuple(left), []):
+                    if manual[p + run:p + run + n_right] == right:
+                        for k in range(run):
+                            v = votes.setdefault(r["ctx"][i + k], {})
+                            v[manual[p + k]] = v.get(manual[p + k], 0) + 1
+            i = j
+    used = set(mapping.values())
+    ids_k = sorted(mapping)
+    out = {}
+    for a, v in votes.items():
+        if a in mapping or len(v) != 1:
+            continue
+        tok = next(iter(v))
+        pos = bisect.bisect_left(ids_k, a)
+        if tok in used or tok in out.values():
+            continue
+        if (pos == 0 or mapping[ids_k[pos - 1]] < tok) and (pos == len(ids_k) or tok < mapping[ids_k[pos]]):
+            out[a] = tok
+    return out
+
+
+CASCADE = [(3, 3, 2), (3, 2, 2), (3, 3, 1), (2, 2, 1)]  # (max_run, n_left, n_right), strictest first
+
+
+def manual_cascade(rows, mapping: dict, manual: list[str]) -> int:
+    added = 0
+    for run, n_left, n_right in CASCADE:
+        for _ in range(4):
+            new = manual_alignment(rows, mapping, manual, run, n_left, n_right)
+            mapping.update(new)
+            added += len(new)
+            if not new:
+                break
+    return added
+
+
 def gap_fill(known: dict, ref_sorted: list[str]) -> dict:
     """An id strictly between mapped ids a < x < b must be a token between their tokens; assign when the count is forced."""
     out = {}
@@ -157,9 +220,23 @@ def main() -> int:
     exact_ids = len(mapping)
     fuzzy_ids = fuzzy_rounds(rows, passages, mapping)
 
+    manual_toks = bosch_tokens(MANUAL.read_text(encoding="utf-8", errors="ignore")) if MANUAL.exists() else []
+    manual_ids, manual_validation = 0, {}
+    if manual_toks:
+        rng0 = random.Random(1)
+        hide = set(rng0.sample(sorted(mapping), len(mapping) // 10))
+        trial0 = {k: v for k, v in mapping.items() if k not in hide}
+        manual_cascade(rows, trial0, manual_toks)
+        rec = [k for k in hide if k in trial0]
+        manual_validation = {"hidden": len(hide), "recovered": len(rec), "correct": sum(trial0[k] == mapping[k] for k in rec)}
+        manual_validation["precision"] = manual_validation["correct"] / max(1, len(rec))
+        print("manual alignment validation on hidden known ids:", manual_validation)
+        if manual_validation["precision"] >= 0.99:
+            manual_ids = manual_cascade(rows, mapping, manual_toks)
+            print(f"manual alignment added {manual_ids} ids")
+
     reference = {t for qs in passages.values() for toks in qs for t in toks}
-    if MANUAL.exists():
-        reference.update(bosch_tokens(MANUAL.read_text(encoding="utf-8", errors="ignore")))
+    reference.update(manual_toks)
     reference.update(re.findall(r"unique_tokens\.append\('([^']*)'\)", BOSCH_SCRIPT.read_text()))
     ref_sorted = sorted(reference)
     rng = random.Random(0)
@@ -197,7 +274,10 @@ def main() -> int:
                 f.write(json.dumps(it) + "\n")
     report = {f"{sp}_{k}": v for (sp, k), v in sorted(stats.items())}
     report.update({"contexts": len(rows), "matched_to_passage_exactly": len(match_text), "ids_from_exact_matches": exact_ids,
-                   "ids_from_fuzzy_alignment": fuzzy_ids, "ids_mapped": len(mapping), "distinct_ids_in_data": len({a for r in rows for a in r["ctx"]}),
+                   "ids_from_fuzzy_alignment": fuzzy_ids,
+                   "ids_from_manual_alignment": manual_ids,
+                   "manual_alignment_validation": manual_validation, "ids_mapped": len(mapping),
+                   "distinct_ids_in_data": len({a for r in rows for a in r["ctx"]}),
                    "conflicting_votes": conflicts, "order_inversions": inversions, "gap_fill_validation": validation, "gap_fill_used": used})
     (OUT / "reconstruction_report.json").write_text(json.dumps(report, indent=1))
     print(json.dumps(report, indent=1))
