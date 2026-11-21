@@ -20,7 +20,9 @@ UNIT_ALIASES = {
     "ft-lb": "foot * force_pound", "ft-lbs": "foot * force_pound", "ft. lbs": "foot * force_pound", "lb-ft": "foot * force_pound",
     "lb-ft.": "foot * force_pound", "lbf-ft": "foot * force_pound", "foot-pounds": "foot * force_pound", "in-lb": "inch * force_pound",
     "in-lbs": "inch * force_pound", "psi": "psi", "kpa": "kilopascal", "bar": "bar", "mph": "mile / hour", "km/h": "kilometer / hour",
-    "kph": "kilometer / hour", "°f": "degF", "°c": "degC", "f": "degF", "c": "degC", "degrees": "degF", "v": "volt", "volt": "volt",
+    "kph": "kilometer / hour", "°f": "degF", "°c": "degC", "f": "degF", "c": "degC", "degrees": "degF", "degree": "degF",
+    "degrees f": "degF", "degrees fahrenheit": "degF", "fahrenheit": "degF", "° f": "degF", "degrees c": "degC", "degrees celsius": "degC",
+    "celsius": "degC", "° c": "degC", "degrees centigrade": "degC", "v": "volt", "volt": "volt",
     "volts": "volt", "amp": "ampere", "amps": "ampere", "a": "ampere", "w": "watt", "watt": "watt", "watts": "watt", "kw": "kilowatt",
     "hp": "horsepower", "mm": "millimeter", "cm": "centimeter", "m": "meter", "meters": "meter", "in": "inch", "in.": "inch", "inch": "inch",
     "inches": "inch", "ft": "foot", "ft.": "foot", "feet": "foot", "foot": "foot", "yd": "yard", "yards": "yard", "km": "kilometer",
@@ -38,9 +40,11 @@ WORD_NUMBERS = {"zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
                 "half": 0.5, "once": 1, "twice": 2}
 
 _UNIT_RE = "|".join(sorted((re.escape(k) for k in UNIT_ALIASES), key=len, reverse=True))
-_NUM = r"(?<![\w.])(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?|\.\d+|\d+/\d+)(?![\w/])"
-QTY_RE = re.compile(_NUM + r"(?:\s*(?:-|to|–)\s*(\d+(?:\.\d+)?))?\s*(" + _UNIT_RE + r")?(?![a-z])", re.I)
-WORD_RE = re.compile(r"\b(" + "|".join(WORD_NUMBERS) + r")\b\s*(" + _UNIT_RE + r")?(?![a-z])", re.I)
+# no letter or "." / ":" before the number ("A4", "7:00"); a unit may be attached after it ("250F", "10mm", "12V")
+_NUM = r"(?<![\w.:/])(\d+/\d+|\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?|\.\d+)(?![\d/:]|\.\d)"
+# the unit must not continue into a compound unit ("kg/m³", "m^2"): those are not handled and are skipped as unitless
+QTY_RE = re.compile(_NUM + r"(?:\s*(?:-|to|–)\s*(?:a\s+)?(\d+/\d+|\d+(?:\.\d+)?))?\s*-?\s*(" + _UNIT_RE + r")?(?![a-z/^²³])", re.I)
+WORD_RE = re.compile(r"\b(" + "|".join(WORD_NUMBERS) + r")\b\s*-?\s*(" + _UNIT_RE + r")?(?![a-z])", re.I)
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,7 @@ class Quantity:
     high: float | None
     unit: str | None          # Pint expression or None for a bare number
     text: str
+    context: frozenset = frozenset()   # topic words within a few words of the number: what the number is about
 
     def magnitude_in(self, unit: str) -> float | None:
         if self.unit is None:
@@ -75,21 +80,47 @@ def _to_float(s: str) -> float:
     return float(s)
 
 
+_CTX_WORDS = 6
+_LOWER_NOT_UNITS = {"a", "c", "f", "v", "w"}
+
+
+_CLAUSE = re.compile(r"[,;()\n]|[.!?](?:\s|$)|\s(?:and|or|but|while|whereas)\s|\d")  # not ":" ("Maximum voltage: 12 V")
+
+
+def _local_context(text: str, start: int, end: int) -> frozenset:
+    """Topic words near the number, within its own clause (stops at , ; ( ) sentence ends, conjunctions and other numbers).
+
+    "N years old" adds the marker "<age>", so an age is never compared with a duration.
+    """
+    left = _CLAUSE.split(text[:start])[-1] if start else ""
+    right = _CLAUSE.split(text[end:])[0]
+    before = _WORD.findall(left.lower())[-_CTX_WORDS:]
+    after = _WORD.findall(right.lower())[:_CTX_WORDS]
+    words = {w.rstrip("s") for w in before + after if w not in _STOP and w not in UNIT_ALIASES and w not in WORD_NUMBERS}
+    if after[:1] == ["old"] or after[:2] == ["year", "old"]:
+        words.add("<age>")
+    return frozenset(words)
+
+
 def extract(text: str) -> list[Quantity]:
     out = []
     for m in QTY_RE.finditer(text):
         num, high, unit = m.group(1), m.group(2), m.group(3)
+        if unit and unit in _LOWER_NOT_UNITS:
+            unit = None  # "7 a.m.", "2 a day": amps, Celsius, Fahrenheit, volts and watts are written A, C, F, V, W
         u = UNIT_ALIASES.get(unit.lower()) if unit else None
-        out.append(Quantity(_to_float(num), float(high) if high else None, u, m.group(0).strip()))
+        span_text = m.group(0) if unit else (m.group(1) + (f"-{high}" if high else ""))
+        out.append(Quantity(_to_float(num), _to_float(high) if high else None, u, span_text.strip(), _local_context(text, m.start(), m.end())))
     for m in WORD_RE.finditer(text):
         word, unit = m.group(1).lower(), m.group(2)
-        if unit and len(unit) == 1:
-            unit = None  # "once a month", "two a day": a single letter after a number word is an article, not a unit
+        if unit and len(unit) <= 2:
+            unit = None  # "once a month", "twice in a day": short words after a number word are not units
         u = UNIT_ALIASES.get(unit.lower()) if unit else None
         if u is None and word in {"one", "once", "half"}:
             continue  # "one of the", "once the engine" are rarely quantities without a unit
         text_ = m.group(0).strip() if unit else m.group(1)
-        out.append(Quantity(float(WORD_NUMBERS[word]), None, u, text_))
+        end = m.end() if unit else m.end(1)
+        out.append(Quantity(float(WORD_NUMBERS[word]), None, u, text_, _local_context(text, m.start(), end)))
     return out
 
 
@@ -103,6 +134,7 @@ class QuantityVerdict:
     status: str            # supported | mismatch | unit_mismatch | absent
     proof: str
     against: str = ""      # the evidence quantity it was compared with, if any
+    overlap: int = 0       # words shared by the claim's and the evidence quantity's local context
 
 
 _EV_SENT = re.compile(r"(?<=[.!?])\s+|\n+")
@@ -128,6 +160,17 @@ def _unit_text(q: Quantity) -> str:
     return q.text[m.end():] if m else (q.unit or "")
 
 
+def _matches(e: Quantity, q: Quantity) -> bool:
+    """Evidence quantity e states the claim's value: equal after conversion, or one range contains the other's value."""
+    lo = e.magnitude_in(q.unit)
+    if lo is None:
+        return False
+    hi = UREG.Quantity(e.high, e.unit).to(q.unit).magnitude if e.high is not None else lo
+    if _close(lo, q.value) or lo <= q.value <= hi:
+        return True
+    return q.high is not None and q.value <= lo <= q.high  # claim range "20-30 ft" covers evidence "30 feet"
+
+
 def check(claim: str, evidence: str) -> list[QuantityVerdict]:
     """Verdict for every quantity in the claim against the evidence text.
 
@@ -138,7 +181,8 @@ def check(claim: str, evidence: str) -> list[QuantityVerdict]:
     related = extract(_related_evidence(claim, evidence))
     out = []
     for q in extract(claim):
-        same_value = [e for e in ev if _close(e.value, q.value) or (e.high is not None and e.value <= q.value <= e.high)]
+        same_value = [e for e in ev if _close(e.value, q.value) or (e.high is not None and e.value <= q.value <= e.high)
+                      or (q.high is not None and q.value <= e.value <= q.high)]
         if q.unit is None:
             status = "supported" if same_value else "absent"
             proof = f"'{q.text}' appears in the evidence" if same_value else f"the number {q.value:g} does not appear in the evidence"
@@ -146,9 +190,13 @@ def check(claim: str, evidence: str) -> list[QuantityVerdict]:
             continue
         dim = _dimensionality(q.unit)
         anywhere = [e for e in ev if e.unit and _dimensionality(e.unit) == dim]
-        comparable = [e for e in related if e.unit and _dimensionality(e.unit) == dim]
-        match = next((e for e in anywhere if _close(e.magnitude_in(q.unit) or float("nan"), q.value)
-                      or (e.high is not None and (e.magnitude_in(q.unit) or 0) <= q.value <= UREG.Quantity(e.high, e.unit).to(q.unit).magnitude)), None)
+        # a number can only contradict another number about the same thing: same dimension, a related sentence, and
+        # at least one shared word next to the two numbers ("married for 10 years" vs "seven years in prison" is not)
+        comparable = sorted((e for e in related if e.unit and _dimensionality(e.unit) == dim and e.context & q.context
+                             and ("<age>" in e.context) == ("<age>" in q.context)),
+                            key=lambda e: -len(e.context & q.context))
+
+        match = next((e for e in anywhere if _matches(e, q)), None)
         if match:
             how = "" if match.unit == q.unit else " after unit conversion"
             out.append(QuantityVerdict(q, "supported", f"'{q.text}' matches evidence '{match.text}'{how}"))
@@ -156,13 +204,14 @@ def check(claim: str, evidence: str) -> list[QuantityVerdict]:
             e = next(e for e in comparable if _close(e.value, q.value))
             conv = e.magnitude_in(q.unit)
             out.append(QuantityVerdict(q, "unit_mismatch", f"claim '{q.text}' but evidence '{e.text}', which is {conv:.3g} {_unit_text(q)}: "
-                                                           "same number, different unit", e.text))
+                                                           "same number, different unit", e.text, len(e.context & q.context)))
         elif comparable:
             e = comparable[0]
             conv = e.magnitude_in(q.unit)
             diff = abs(conv - q.value) / max(abs(conv), 1e-9) if conv is not None else float("nan")
             said = f"'{e.text}'" if e.unit == q.unit else f"'{e.text}', which is {conv:.3g} {_unit_text(q)}"
-            out.append(QuantityVerdict(q, "mismatch", f"claim '{q.text}' but evidence says {said} ({diff:.0%} difference)", e.text))
+            out.append(QuantityVerdict(q, "mismatch", f"claim '{q.text}' but evidence says {said} ({diff:.0%} difference)", e.text,
+                                       len(e.context & q.context)))
         elif same_value:
             out.append(QuantityVerdict(q, "supported", f"value {q.value:g} appears in the evidence without a comparable unit"))
         else:
