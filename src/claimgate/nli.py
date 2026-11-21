@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -19,8 +21,9 @@ def device() -> str:
 
 
 class NLI:
-    def __init__(self, model_dir: Path | str = DEFAULT_MODEL, batch_size: int = 16, max_length: int = 512, cache: Path | None = None):
-        self.model_dir = Path(model_dir)
+    def __init__(self, model_dir: Path | str = DEFAULT_MODEL, batch_size: int = 16, max_length: int = 512, cache: Path | None = None,
+                 verbose: bool = False):
+        self.model_dir, self.verbose = Path(model_dir), verbose
         self.batch_size, self.max_length = batch_size, max_length
         self.tok = AutoTokenizer.from_pretrained(self.model_dir)
         self.model = AutoModelForSequenceClassification.from_pretrained(self.model_dir).eval().to(device())
@@ -37,9 +40,11 @@ class NLI:
 
     @torch.inference_mode()
     def _run(self, pairs: list[tuple[str, str]]) -> np.ndarray:
-        out = []
+        out, t0 = [], time.time()
         order = sorted(range(len(pairs)), key=lambda i: len(pairs[i][0]) + len(pairs[i][1]))
         for b in range(0, len(order), self.batch_size):
+            if self.verbose and b and b % (self.batch_size * 200) == 0:
+                print(f"  nli {b}/{len(pairs)} pairs, {time.time() - t0:.0f}s", file=sys.stderr, flush=True)
             idx = order[b:b + self.batch_size]
             enc = self.tok([pairs[i][0] for i in idx], [pairs[i][1] for i in idx], truncation="only_first", max_length=self.max_length,
                            padding=True, return_tensors="pt").to(self.model.device)

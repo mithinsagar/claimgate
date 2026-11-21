@@ -19,7 +19,7 @@ def main() -> None:
     ap.add_argument("--model", default=str(ROOT / "models" / "deberta-v3-large-nli"))
     ap.add_argument("--batch-size", type=int, default=16)
     args = ap.parse_args()
-    nli = NLI(args.model, batch_size=args.batch_size)
+    nli = NLI(args.model, batch_size=args.batch_size, verbose=True)
     out = ROOT / "artifacts" / "features"
     out.mkdir(parents=True, exist_ok=True)
     tag = Path(args.model).name

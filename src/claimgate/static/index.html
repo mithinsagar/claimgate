@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClaimGate</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e3e2dd;
+    --ok: #1f7a4d; --ok-bg: #e5f3eb; --bad: #b42318; --bad-bg: #fbe9e7; --warn: #8a5a00; --warn-bg: #fdf3dc; --accent: #2f4fb3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #151514; --panel: #1e1e1c; --ink: #ecebe6; --muted: #a09f98; --line: #34332f;
+      --ok: #6fcf97; --ok-bg: #173325; --bad: #ff8a7a; --bad-bg: #3a1d19; --warn: #f2c766; --warn-bg: #3a2f14; --accent: #8fa8ff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0 0 6px; }
+  textarea, input { width: 100%; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: inherit; }
+  textarea { resize: vertical; }
+  #evidence { min-height: 300px; }
+  #answer { min-height: 196px; }
+  .field { margin-bottom: 14px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button { border: 0; border-radius: 8px; padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; background: var(--accent); color: #fff; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  button:disabled { opacity: 0.6; cursor: progress; }
+  .status { color: var(--muted); font-size: 13px; }
+  #result { margin-top: 26px; }
+  .banner { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-radius: 10px; margin-bottom: 14px; font-weight: 600; }
+  .PASS { background: var(--ok-bg); color: var(--ok); } .BLOCK { background: var(--bad-bg); color: var(--bad); } .REVIEW { background: var(--warn-bg); color: var(--warn); }
+  .claim { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+  .claim-head { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+  .chip { flex: none; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; letter-spacing: 0.02em; }
+  .SUPPORTED { background: var(--ok-bg); color: var(--ok); } .CONTRADICTED { background: var(--bad-bg); color: var(--bad); }
+  .NOT_IN_EVIDENCE { background: var(--warn-bg); color: var(--warn); }
+  .risk { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  details { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  details ul { margin: 6px 0 0; padding-left: 18px; }
+  .ev { border-left: 3px solid var(--line); padding-left: 10px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ClaimGate</h1>
+  <p class="sub">Paste the evidence a RAG system retrieved and the answer it generated. Each claim in the answer is checked against the evidence: numbers and units by arithmetic, the rest by a calibrated entailment model.</p>
+  <div class="grid">
+    <div>
+      <div class="field"><label for="evidence">Evidence</label><textarea id="evidence"></textarea></div>
+    </div>
+    <div>
+      <div class="field"><label for="question">Question (optional)</label><input id="question"></div>
+      <div class="field"><label for="answer">Answer to verify</label><textarea id="answer"></textarea></div>
+      <div class="row">
+        <button id="go">Verify</button>
+        <button class="ghost" id="example">Load example</button>
+        <span class="status" id="status"></span>
+      </div>
+    </div>
+  </div>
+  <section id="result" aria-live="polite"></section>
+</main>
+<script>
+const EXAMPLE = {
+  evidence: "Wheel and tire care. Tighten the lug nuts in a star pattern to 130 ft-lb (176 N·m). Check the torque again after the first 25 miles. " +
+    "Tire pressure should be checked at least once a month when the tires are cold. The recommended cold inflation pressure is printed on the " +
+    "tire placard on the driver's side B-pillar. Do not exceed the maximum inflation pressure molded into the tire sidewall. " +
+    "The spare tire is for temporary use only and should not be driven above 50 mph.",
+  question: "How do I put the wheel back on and what should I check afterwards?",
+  answer: "Tighten the lug nuts in a star pattern to 176 N·m. Check the torque again after the first 25 miles. " +
+    "The spare tire can be driven at up to 70 mph. Check the tire pressure once a month when the tires are cold. " +
+    "Rotate your tires every 5,000 miles to extend their life."
+};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const LABEL = {SUPPORTED: "Supported", CONTRADICTED: "Contradicted", NOT_IN_EVIDENCE: "Not in evidence"};
+const OVERALL = {PASS: "Answer passes: every claim is supported", BLOCK: "Answer blocked: at least one claim is not supported", REVIEW: "Needs review: some claims are too close to call"};
+$("example").onclick = () => { for (const k of ["evidence", "question", "answer"]) $(k).value = EXAMPLE[k]; };
+$("go").onclick = async () => {
+  const body = {evidence: $("evidence").value, answer: $("answer").value, question: $("question").value};
+  if (!body.evidence.trim() || !body.answer.trim()) { $("status").textContent = "Evidence and answer are required."; return; }
+  $("go").disabled = true; $("status").textContent = "Checking claims...";
+  try {
+    const r = await fetch("/verify", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    $("status").textContent = `${d.claims.length} claims in ${d.latency_ms} ms`;
+    $("result").innerHTML = `<div class="banner ${d.verdict}"><span>${OVERALL[d.verdict]}</span><span>risk ${(100 * d.answer_risk).toFixed(0)}%</span></div>` +
+      d.claims.map((c) => `<div class="claim"><div class="claim-head"><div>${esc(c.claim)}</div><span class="chip ${c.verdict}">${LABEL[c.verdict]}</span></div>
+        <div class="risk">risk ${(100 * c.risk).toFixed(0)}%${c.needs_review ? " · close to the threshold, review suggested" : ""}</div>
+        <details><summary>Proof</summary><ul>${c.proof.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+        <div class="ev">${esc(c.evidence)}</div></details></div>`).join("");
+  } catch (e) { $("status").textContent = "Error: " + e.message; }
+  finally { $("go").disabled = false; }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+"""Pipeline and API tests with a stub NLI model, so they run without downloading weights."""
+import numpy as np
+import pandas as pd
+import pytest
+from fastapi.testclient import TestClient
+
+from claimgate import serve
+from claimgate.decide import SentenceModel, answer_scores, tune_threshold
+from claimgate.features import FEATURES
+from claimgate.pipeline import ClaimGate, split_claims
+from claimgate.text import content_words
+
+
+class StubNLI:
+    """Entailment = share of the hypothesis' content words found in the premise."""
+
+    def score(self, pairs):
+        out = []
+        for p, h in pairs:
+            hw, pw = set(content_words(h)), set(content_words(p))
+            e = len(hw & pw) / max(1, len(hw))
+            out.append([e, 1 - e, 0.0])
+        return np.array(out, dtype=np.float32)
+
+
+def toy_model() -> SentenceModel:
+    rng = np.random.default_rng(0)
+    n = 400
+    df = pd.DataFrame(rng.random((n, len(FEATURES))), columns=FEATURES)
+    df["target"] = (df.e_win_max < 0.5).astype(int)
+    df["uid"] = [f"a{i // 2}" for i in range(n)]
+    return SentenceModel.fit(df, FEATURES, seeds=1, folds=3)
+
+
+@pytest.fixture(scope="module")
+def gate():
+    return ClaimGate(StubNLI(), toy_model(), threshold=0.5, band=0.05)
+
+
+EVIDENCE = "Tighten the lug nuts to 130 ft-lb. Check the tire pressure once a month when the tires are cold. Do not drive the spare above 50 mph."
+
+
+def test_split_claims():
+    assert split_claims("One claim here. Another one! A third?") == ["One claim here.", "Another one!", "A third?"]
+
+
+def test_supported_and_contradicted(gate):
+    rep = gate.verify("Check the tire pressure once a month when the tires are cold. Tighten the lug nuts to 200 ft-lb.", EVIDENCE)
+    assert [c.verdict for c in rep.claims] == ["SUPPORTED", "CONTRADICTED"]
+    assert rep.verdict == "BLOCK"
+    assert any("difference" in p for p in rep.claims[1].proof)
+
+
+def test_converted_value_is_not_contradicted(gate):
+    rep = gate.verify("Tighten the lug nuts to 176 N·m.", EVIDENCE)
+    assert rep.claims[0].verdict == "SUPPORTED"
+    assert any("unit conversion" in p for p in rep.claims[0].proof)
+
+
+def test_unsupported_claim(gate):
+    rep = gate.verify("Rotate tires every 5,000 miles for longer tread life.", EVIDENCE)
+    assert rep.claims[0].verdict != "SUPPORTED"
+
+
+def test_answer_level_max_and_threshold():
+    df = pd.DataFrame({"uid": ["a", "a", "b"], "answer_label": [1, 1, 0]})
+    a = answer_scores(df, np.array([0.1, 0.9, 0.2]))
+    assert a.loc["a", "score"] == 0.9 and a.loc["b", "score"] == 0.2
+    t, f = tune_threshold(a.label.to_numpy(), a.score.to_numpy())
+    assert f == 1.0 and 0.2 < t <= 0.9
+
+
+def test_api(gate, monkeypatch):
+    monkeypatch.setattr(serve, "gate", lambda: gate)
+    client = TestClient(serve.app)
+    assert client.get("/health").json()["status"] == "ok"
+    r = client.post("/verify", json={"answer": "Do not drive the spare above 50 mph.", "evidence": EVIDENCE})
+    assert r.status_code == 200 and r.json()["claims"][0]["verdict"] == "SUPPORTED"
+    assert client.post("/verify", json={"answer": "", "evidence": EVIDENCE}).status_code == 422
+    assert "ClaimGate" in client.get("/").text
