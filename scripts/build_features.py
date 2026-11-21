@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from claimgate.data import ROOT, load_delucionqa  # noqa: E402
 from claimgate.features import sentence_features  # noqa: E402
 from claimgate.nli import NLI  # noqa: E402
+from claimgate.stress import train_augmentation  # noqa: E402
 
 
 def main() -> None:
@@ -25,7 +26,11 @@ def main() -> None:
     tag = Path(args.model).name
     for split in args.splits:
         t0 = time.time()
-        df = sentence_features(load_delucionqa(split), nli)
+        examples = train_augmentation() if split == "train_aug" else load_delucionqa(split)
+        df = sentence_features(examples, nli)
+        if split == "train_aug":
+            df["source_uid"] = [e.meta["source_uid"] for e in examples for _ in e.sentences]
+            df["kind"] = [e.meta["kind"] for e in examples for _ in e.sentences]
         df.to_parquet(out / f"{split}_{tag}.parquet")
         print(f"{split}: {len(df)} sentences, {df.uid.nunique()} answers, {time.time() - t0:.0f}s", flush=True)
 

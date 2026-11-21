@@ -116,3 +116,29 @@ def as_example(item: StressItem, ex: Example, i: int) -> Example:
     return Example(uid=f"stress{i}", split="stress", question=ex.question, context=ex.context, context_cased=ex.context_cased, answer=item.claim,
                    sentences=[item.claim], sentence_labels=["Supported" if item.label == 0 else "Neither"], label=item.label, coverage=ex.coverage,
                    meta=dict(ex.meta))
+
+
+EDIT_KINDS = ("value_shift", "unit_swap", "negation", "condition_swap")
+
+
+def augmentation(examples: list[Example], seed: int = 11, per_kind_cap: int = 400, exclude: set[str] | None = None) -> list[Example]:
+    """Rule-made contradictions of supported train sentences, used as extra training rows (label: Conflicted).
+
+    Built from the train split only, and sentences in `exclude` (those that also occur verbatim in dev or test answers)
+    are skipped, so the dev/test QuantStress sets stay a held-out evaluation.
+    """
+    out = []
+    exclude = exclude or set()
+    edits = [x for x in generate(examples, seed=seed, per_kind_cap=per_kind_cap) if x[0].kind in EDIT_KINDS and x[0].source not in exclude]
+    for i, (item, ex) in enumerate(edits):
+        e = as_example(item, ex, i)
+        e.uid, e.split, e.sentence_labels = f"aug{i}", "train_aug", ["Conflicted"]
+        e.meta.update({"source_uid": ex.uid, "kind": item.kind})
+        out.append(e)
+    return out
+
+
+def train_augmentation() -> list[Example]:
+    from claimgate.data import load_delucionqa
+    held = {s for split in ("dev", "test") for e in load_delucionqa(split) for s in e.sentences}
+    return augmentation(load_delucionqa("train"), exclude=held)
