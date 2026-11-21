@@ -45,9 +45,9 @@ def premise(ctx_sents: list[str], claim: str, k: int = 4, max_words: int = 260) 
 class Verifier:
     """Average of the cross-fitted fold models; returns P(supported), P(neither), P(contradicted) per pair."""
 
-    def __init__(self, root: Path = VERIFIER_DIR, device: str | None = None, batch_size: int = 16):
+    def __init__(self, root: Path = VERIFIER_DIR, device: str | None = None, batch_size: int = 16, dirs: list[Path] | None = None):
         from claimgate.nli import device as default_device
-        self.dirs = sorted(p for p in Path(root).glob("fold*") if (p / "config.json").exists())
+        self.dirs = dirs or sorted(p for p in Path(root).glob("fold*") if (p / "config.json").exists())
         if not self.dirs:
             raise FileNotFoundError(f"no verifier folds in {root}")
         self.device = device or default_device()

@@ -133,3 +133,24 @@ def oof_risk(df: pd.DataFrame, features: list[str], groups, folds: int = 5) -> n
     for tr, va in GroupKFold(folds).split(X, y, np.asarray(groups)):
         out[va] = logreg().fit(X[tr], y[tr]).predict_proba(X[va])[:, 1]
     return out
+
+
+@dataclass
+class BlendModel:
+    """Equal-weight (or `weight`) mix of the calibrated feature model and the calibrated fine-tuned verifier.
+
+    The verifier's fold models are averaged at inference, so their out-of-fold scores on train sit on per-fold scales
+    and cannot be stacked reliably; instead its risk 1 - P(supported) is calibrated on dev with isotonic regression and
+    mixed with the feature model's calibrated risk. weight = 1 is the feature model alone, 0 the verifier alone.
+    """
+    lr: SentenceModel
+    verifier_cal: IsotonicRegression
+    weight: float = 0.5
+
+    @property
+    def features(self) -> list[str]:
+        return list(self.lr.features) + ["ft_sup", "ft_con"]
+
+    def predict_proba(self, df: pd.DataFrame) -> np.ndarray:
+        v = self.verifier_cal.predict(1 - df["ft_sup"].to_numpy())
+        return self.weight * self.lr.predict_proba(df) + (1 - self.weight) * v

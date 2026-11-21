@@ -1,12 +1,17 @@
 """DelucionQA evaluation. Models and design choices on train (grouped cross-validation), thresholds on dev, test once.
 
-Decision rules, fixed before looking at test:
-  * signals: an extra signal (HHEM, MiniCheck, fine-tuned verifier) joins the model if it raises out-of-fold answer AUC on
-    train by at least 0.002;
-  * rule-made contradictions of train sentences are added to the training rows unless they cost more than 0.005
-    out-of-fold answer AUC on the real train answers;
+Decision rules:
+  * signals: a zero-shot signal (HHEM, MiniCheck) joins the feature model if it raises out-of-fold answer AUC on train by
+    at least 0.002;
+  * rule-made contradictions of train sentences are added to the feature model's training rows unless they cost more than
+    0.005 out-of-fold answer AUC on the real train answers;
+  * the fine-tuned verifier: its fold models are averaged at inference, so pooled out-of-fold scores (one scale per fold)
+    cannot be stacked reliably on train. The final model is chosen by dev macro F1 among three fixed candidates: the
+    feature model, the verifier alone, and an equal-weight blend of the two calibrated risks (verifier calibrated on dev);
   * the contradiction gate stays if it catches more of the held-out-fold rule-made contradictions and costs at most
     0.5 points of dev macro F1.
+A first full run stacked the pooled out-of-fold verifier scores; train analysis showed per-fold scale differences, so
+the verifier is now combined by calibration and blending instead (README, "How the final model was chosen").
 Writes results/delucionqa.{json,md}, the shipped zero-shot model (src/claimgate/assets) and the full model (models/).
 """
 from __future__ import annotations
@@ -21,9 +26,12 @@ from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from sklearn.isotonic import IsotonicRegression  # noqa: E402
+
 from claimgate.baselines import sim_overlap_predict  # noqa: E402
 from claimgate.data import ROOT, load_delucionqa  # noqa: E402
 from claimgate.decide import (  # noqa: E402
+    BlendModel,
     SentenceModel,
     abstention_curve,
     answer_scores,
@@ -41,6 +49,7 @@ PUBLISHED = {"Sim-overlap": 71.09, "Sim-hybrid": 70.81, "Sim-cosine": 69.45, "Ke
 NLI_COLS = ["e_win_max", "c_at_best", "n_at_best", "c_win_max", "e_win_mean", "e_chunk_max", "c_chunk_max", "n_chunk_min", "e_prev", "e_next"]
 Q_COLS = ["q_n", "q_supported", "q_mismatch", "q_unit_mismatch", "q_absent"]
 TAG = "deberta-v3-large-nli"
+VERIFIER_MODEL_PATH = ROOT / "models" / "claimgate_verifier.joblib"
 
 
 def with_llm(df: pd.DataFrame, split: str) -> pd.DataFrame:
@@ -113,10 +122,22 @@ def main() -> None:
     sel["with_rule_made_contradictions_auc"] = answer_auc(tr, r_both[real])
     use_aug = sel["with_rule_made_contradictions_auc"] >= sel["real_rows_only_auc"] - 0.005
     sel["use_rule_made_contradictions"] = use_aug
-    a_cv = answer_scores(tr, r_both[real])
+    # catch rate on held-out-fold rule-made rows by the configuration actually used
+    if use_aug:
+        r_real, r_aug = r_both[real], r_both[~real]
+    else:
+        r_real, r_aug = oof_risk(tr, full_feats, real_groups), np.zeros(len(aug))
+        fold_of = {u: i % 5 for i, u in enumerate(sorted(set(real_groups)))}
+        for k in range(5):
+            train_mask = np.array([fold_of[u] != k for u in real_groups])
+            aug_mask = np.array([fold_of.get(u, -1) == k for u in aug.source_uid])
+            if aug_mask.any():
+                m_k = SentenceModel.fit(tr[train_mask], full_feats)
+                r_aug[aug_mask] = m_k.predict_proba(aug[aug_mask])
+    a_cv = answer_scores(tr, r_real)
     t_cv, _ = tune_threshold(a_cv.label.to_numpy(), a_cv.score.to_numpy())
-    sel["rule_made_caught_without_gate"] = float((r_both[~real] >= t_cv).mean())
-    sel["rule_made_caught_with_gate"] = float(((r_both[~real] >= t_cv) | contradiction_gate(aug)).mean())
+    sel["rule_made_caught_without_gate"] = float((r_aug >= t_cv).mean())
+    sel["rule_made_caught_with_gate"] = float(((r_aug >= t_cv) | contradiction_gate(aug)).mean())
 
     fit_df, fit_groups, fit_mask = (both, both_groups, real) if use_aug else (tr, real_groups, None)
 
@@ -154,14 +175,35 @@ def main() -> None:
         if col in dv and col in te and dv[col].notna().all() and te[col].notna().all():
             results.append(evaluate(name, dv, te, 1 - dv[col].to_numpy(), 1 - te[col].to_numpy(), complete, unseen))
 
-    for name, feats, path in (("ClaimGate", full_feats, FULL_MODEL_PATH), ("ClaimGate, no fine-tuned network", zero_shot_feats, MODEL_PATH)):
-        m = full if feats == full_feats else fit(feats)
+    final, final_name = full, "feature model"
+    if "ft_sup" in signals:
+        dv_sent_risk = 1 - dv.ft_sup.to_numpy()
+        cal = IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1).fit(dv_sent_risk, dv.target.to_numpy())
+        candidates = {"feature model": full, "verifier alone": BlendModel(full, cal, 0.0), "equal-weight blend": BlendModel(full, cal, 0.5)}
+        dev_scores = {k: dev_f1(dv, risk(m, dv, use_gate)) for k, m in candidates.items()}
+        sel["final_candidates_dev_macro_f1"] = dev_scores
+        final_name = max(dev_scores, key=dev_scores.get)
+        final = candidates[final_name]
+    sel["final_model"] = final_name
+    print("final model chosen on dev:", final_name, sel.get("final_candidates_dev_macro_f1"))
+    for name, feats, path in (("ClaimGate", None, FULL_MODEL_PATH), ("ClaimGate, no fine-tuned network", zero_shot_feats, MODEL_PATH)):
+        m = final if feats is None else fit(feats)
+        feats = m.features
         r = evaluate(name, dv, te, risk(m, dv, use_gate), risk(m, te, use_gate), complete, unseen)
         r["sentence_ece_test"] = expected_calibration_error(te.target, m.predict_proba(te))
         r["review_band_logit"] = review_band(answer_scores(dv, risk(m, dv, use_gate)).score.to_numpy(), r["threshold"])
         r["features"] = feats
         results.append(r)
         ClaimGate(None, m, r["threshold"], r["review_band_logit"]).save(path)
+    if "ft_sup" in signals:
+        for cname, cm in candidates.items():
+            if cname == final_name:
+                continue
+            r = evaluate(f"ClaimGate variant: {cname} (not selected on dev)", dv, te, risk(cm, dv, use_gate), risk(cm, te, use_gate), complete, unseen)
+            r["review_band_logit"] = review_band(answer_scores(dv, risk(cm, dv, use_gate)).score.to_numpy(), r["threshold"])
+            results.append(r)
+            if cname == "verifier alone":
+                ClaimGate(None, cm, r["threshold"], r["review_band_logit"]).save(VERIFIER_MODEL_PATH)
     for name, feats, gate in (("without contradiction gate", full_feats, not use_gate),
                               ("without NLI features", [f for f in full_feats if f not in NLI_COLS], use_gate),
                               ("without quantity features", [f for f in full_feats if f not in Q_COLS], use_gate),

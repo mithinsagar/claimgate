@@ -66,7 +66,8 @@ def main() -> None:
     for col, name in (("hhem", "HHEM-2.1-Open zero-shot"), ("minicheck", "MiniCheck-Flan-T5-Large zero-shot")):
         if col in test and test[col].notna().all():
             systems[name] = (1 - dev[col].to_numpy(), 1 - test[col].to_numpy(), None)
-    for name, path in (("ClaimGate", FULL_MODEL_PATH), ("ClaimGate, no fine-tuned network", MODEL_PATH)):
+    for name, path in (("ClaimGate", FULL_MODEL_PATH), ("ClaimGate, no fine-tuned network", MODEL_PATH),
+                       ("ClaimGate variant: fine-tuned verifier", ROOT / "models" / "claimgate_verifier.joblib")):
         if not Path(path).exists():
             continue
         g = joblib.load(path)
