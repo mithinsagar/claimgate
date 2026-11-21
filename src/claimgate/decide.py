@@ -39,14 +39,22 @@ class SentenceModel:
     calibrator: IsotonicRegression
 
     @classmethod
-    def fit(cls, df: pd.DataFrame, features: list[str], seeds: int = 5, folds: int = 5, kind: str = "lr") -> SentenceModel:
+    def fit(cls, df: pd.DataFrame, features: list[str], seeds: int = 5, folds: int = 5, kind: str = "lr", groups=None,
+            calibrate_on=None) -> SentenceModel:
+        """Fit on all rows; calibrate with isotonic regression on out-of-fold scores of the `calibrate_on` rows.
+
+        `groups` keeps related rows in the same fold (an answer's sentences, and rule-made edits with their source answer);
+        `calibrate_on` restricts calibration to real claims so that augmented rows do not distort the probabilities.
+        """
         make = logreg if kind == "lr" else gbm
         seeds = 1 if kind == "lr" else seeds
-        X, y, groups = df[features].to_numpy(), df["target"].to_numpy(), df["uid"].to_numpy()
+        X, y = df[features].to_numpy(), df["target"].to_numpy()
+        groups = df["uid"].to_numpy() if groups is None else np.asarray(groups)
+        mask = np.ones(len(df), bool) if calibrate_on is None else np.asarray(calibrate_on)
         oof = np.zeros(len(df))
         for tr, va in GroupKFold(folds).split(X, y, groups):
             oof[va] = np.mean([make(s).fit(X[tr], y[tr]).predict_proba(X[va])[:, 1] for s in range(seeds)], axis=0)
-        cal = IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1).fit(oof, y)
+        cal = IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1).fit(oof[mask], y[mask])
         models = [make(s).fit(X, y) for s in range(seeds)]
         return cls(features, models, cal)
 
@@ -116,3 +124,12 @@ def contradiction_gate(df: pd.DataFrame) -> np.ndarray:
 
 def gated_risk(model: SentenceModel, df: pd.DataFrame) -> np.ndarray:
     return np.where(contradiction_gate(df), 1.0, model.predict_proba(df))
+
+
+def oof_risk(df: pd.DataFrame, features: list[str], groups, folds: int = 5) -> np.ndarray:
+    """Out-of-fold logistic-regression risk for every row (model selection on train only)."""
+    X, y = df[features].to_numpy(), df["target"].to_numpy()
+    out = np.zeros(len(df))
+    for tr, va in GroupKFold(folds).split(X, y, np.asarray(groups)):
+        out[va] = logreg().fit(X[tr], y[tr]).predict_proba(X[va])[:, 1]
+    return out

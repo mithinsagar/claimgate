@@ -1,13 +1,17 @@
 """ClaimGate end to end: answer + evidence -> one verdict per claim, each with its proof.
 
 Order of authority:
-  1. deterministic quantity checks: a number or unit that disagrees with the evidence is CONTRADICTED, with the arithmetic
-     as proof, whatever the learned model says; the contradiction gate does the same for claims whose wording matches the
-     evidence but whose meaning NLI finds contradicted (a flipped "not", "before" instead of "after");
-  2. the calibrated risk model over NLI and grounding features decides SUPPORTED vs NOT_IN_EVIDENCE (or CONTRADICTED when
-     the best evidence window contradicts the claim);
+  1. deterministic quantity checks: a number or unit that disagrees with a related evidence sentence is CONTRADICTED,
+     with the arithmetic as proof, whatever the learned model says; the contradiction gate does the same for claims whose
+     wording matches the evidence but whose meaning NLI finds contradicted (a flipped "not", "before" instead of "after");
+  2. the calibrated risk model decides SUPPORTED vs NOT_IN_EVIDENCE (or CONTRADICTED when the best evidence window
+     contradicts the claim);
   3. claims whose risk is within the review band of the threshold (logit distance, sized on dev so about 20% of
      answers go to review) are flagged for review instead of guessed.
+
+Policies: "strict" blocks an answer with any claim that is not supported (DelucionQA's convention: true advice that the
+evidence does not contain counts as a hallucination); "contradictions" blocks only answers that contradict the evidence
+and reports unsupported claims as warnings.
 """
 from __future__ import annotations
 
@@ -23,9 +27,13 @@ from claimgate.baselines import bosch_tokens
 from claimgate.data import ROOT, Example
 from claimgate.decide import SentenceModel, contradiction_gate, margin
 from claimgate.features import sentence_features
+from claimgate.signals import SIGNAL_COLUMNS, add_signals
 from claimgate.text import sentences
 
-MODEL_PATH = ROOT / "artifacts" / "claimgate_model.joblib"
+ASSETS = Path(__file__).parent / "assets"
+MODEL_PATH = ASSETS / "claimgate_zero_shot.joblib"            # shipped: needs only the downloaded zero-shot models
+FULL_MODEL_PATH = ROOT / "models" / "claimgate_full.joblib"   # written by `make evaluate` once the verifier is trained
+POLICIES = ("strict", "contradictions")
 _SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"(])|\n+")
 
 
@@ -46,35 +54,44 @@ class ClaimVerdict:
 @dataclass
 class Report:
     verdict: str                  # PASS | BLOCK | REVIEW
+    policy: str
     answer_risk: float
     claims: list[ClaimVerdict]
+    warnings: int = 0             # unsupported claims that did not block the answer (policy "contradictions")
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
 class ClaimGate:
-    def __init__(self, nli, model: SentenceModel, threshold: float, band: float = 0.5, llm=None):
-        self.nli, self.model, self.threshold, self.band, self.llm = nli, model, threshold, band, llm
-        if "llm_yes" in model.features and llm is None and nli is not None:
-            raise ValueError("this model uses the LLM judge feature; pass llm=LLMJudge()")
+    def __init__(self, nli, model: SentenceModel, threshold: float, band: float = 0.5, scorers: dict | None = None):
+        self.nli, self.model, self.threshold, self.band = nli, model, threshold, band
+        self.scorers = scorers or {}
+        needed = {SIGNAL_COLUMNS[c] for c in model.features if c in SIGNAL_COLUMNS}
+        if nli is not None and needed - set(self.scorers):
+            raise ValueError(f"this model needs the signals {sorted(needed)}; pass scorers for {sorted(needed - set(self.scorers))}")
+
+    @property
+    def needed_signals(self) -> set[str]:
+        return {SIGNAL_COLUMNS[c] for c in self.model.features if c in SIGNAL_COLUMNS}
 
     @classmethod
-    def load(cls, nli, path: Path = MODEL_PATH, llm=None) -> ClaimGate:
-        d = joblib.load(path)
-        return cls(nli, d["model"], d["threshold"], d.get("band", 0.5), llm)
+    def load(cls, nli, path: Path | None = None, scorers: dict | None = None) -> ClaimGate:
+        d = joblib.load(path or MODEL_PATH)
+        return cls(nli, d["model"], d["threshold"], d.get("band", 0.5), scorers)
 
     def save(self, path: Path = MODEL_PATH) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump({"model": self.model, "threshold": self.threshold, "band": self.band}, path)
 
-    def verify(self, answer: str, evidence: str, question: str = "") -> Report:
+    def verify(self, answer: str, evidence: str, question: str = "", policy: str = "strict") -> Report:
+        if policy not in POLICIES:
+            raise ValueError(f"policy must be one of {POLICIES}")
         claims = split_claims(answer) or [answer.strip()]
         ex = Example(uid="live", split="live", question=question, context=" ".join(bosch_tokens(evidence)), context_cased=evidence,
                      answer=answer, sentences=claims, sentence_labels=["Supported"] * len(claims), label=0, meta={"evidence": evidence})
         df = sentence_features([ex], self.nli)
-        if "llm_yes" in self.model.features:
-            df["llm_yes"] = self.llm.score(evidence, question, answer, claims)
+        df = add_signals(df, [ex], self.scorers, self.needed_signals)
         risk = self.model.predict_proba(df)
         gate = contradiction_gate(df)
         out = []
@@ -91,7 +108,8 @@ class ClaimGate:
                 proof.append(f"an evidence window contradicts the claim (p={row.c_win_max:.2f}) and none entails it "
                              f"(p={max(row.e_win_max, row.e_chunk_max):.2f}) although its wording comes from the evidence")
             elif r >= self.threshold:
-                verdict = "CONTRADICTED" if row.c_at_best > max(0.5, row.e_win_max) else "NOT_IN_EVIDENCE"
+                contradicted = row.c_at_best > max(0.5, row.e_win_max) or row.get("ft_con", 0.0) > 0.5
+                verdict = "CONTRADICTED" if contradicted else "NOT_IN_EVIDENCE"
                 proof.append(f"best evidence window: entailment {row.e_win_max:.2f}, contradiction {row.c_at_best:.2f}")
             else:
                 verdict = "SUPPORTED"
@@ -101,11 +119,13 @@ class ClaimGate:
             if bad:  # show the evidence sentence holding the conflicting number, not the best-entailment window
                 shown = next((x for x in sentences(evidence) if bad[0].against and bad[0].against in x), shown)
             out.append(ClaimVerdict(claim, verdict, r, review, shown, proof))
-        answer_risk = float(np.max([c.risk for c in out]))
-        if any(c.verdict != "SUPPORTED" and not c.needs_review for c in out):
+        blocking = {"CONTRADICTED", "NOT_IN_EVIDENCE"} if policy == "strict" else {"CONTRADICTED"}
+        warnings = sum(c.verdict == "NOT_IN_EVIDENCE" for c in out) if policy == "contradictions" else 0
+        if any(c.verdict in blocking and not c.needs_review for c in out):
             overall = "BLOCK"
-        elif any(c.needs_review for c in out):
+        elif any(c.needs_review and (c.verdict in blocking or policy == "strict") for c in out):
             overall = "REVIEW"
         else:
             overall = "PASS"
-        return Report(overall, answer_risk, out)
+        answer_risk = float(np.max([c.risk for c in out]))
+        return Report(overall, policy, answer_risk, out, warnings)

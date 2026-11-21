@@ -72,6 +72,9 @@ def build_pairs(ex: Example, top_k: int = 6, canonical: bool = True) -> tuple[li
     return pairs, win_idx, ch_idx
 
 
+EARLY_EXIT = 0.9  # a claim a short window already entails with p >= 0.9 skips the long-chunk NLI pass
+
+
 def sentence_features(examples: list[Example], nli, canonical: bool = True) -> pd.DataFrame:
     all_pairs, plan = [], []
     for ex in examples:
@@ -79,7 +82,21 @@ def sentence_features(examples: list[Example], nli, canonical: bool = True) -> p
         off = len(all_pairs)
         all_pairs.extend(pairs)
         plan.append(([[off + i for i in w] for w in wi], [[off + i for i in c] for c in ci]))
-    probs = nli.score(all_pairs) if all_pairs else np.zeros((0, 3))
+    probs = np.zeros((len(all_pairs), 3), dtype=np.float32)
+    win_ids = [i for wi, _ in plan for w in wi for i in w]
+    if win_ids:
+        probs[win_ids] = nli.score([all_pairs[i] for i in win_ids])
+    # two-stage: long chunks are scored only for claims no short window clearly entails; the others reuse the best window
+    chunk_ids = []
+    for wi, ci in plan:
+        for w, c in zip(wi, ci, strict=True):
+            best = max(w, key=lambda i: probs[i, 0])
+            if probs[best, 0] >= EARLY_EXIT:
+                probs[c] = probs[best]
+            else:
+                chunk_ids.extend(c)
+    if chunk_ids:
+        probs[chunk_ids] = nli.score([all_pairs[i] for i in chunk_ids])
 
     rows = []
     use_emb = embed.MODEL_DIR.exists()

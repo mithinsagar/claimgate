@@ -1,28 +1,44 @@
 PY ?= .venv/bin/python
 
-.PHONY: setup data models features evaluate stress finetune serve test lint
+.PHONY: setup data models features verifier detectors evaluate stress ragtruth quantity-checker figures all serve test lint
 
 setup:
-	python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && $(PY) -m nltk.downloader -q punkt punkt_tab
+	python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && $(PY) -m nltk.downloader -q punkt punkt_tab
 
-data:  ## DelucionQA ids + RAGBench passages -> data/delucionqa/*.jsonl (see docs/data.md)
+data:        ## DelucionQA ids + RAGBench passages + manual text -> data/delucionqa/*.jsonl (docs/data.md)
 	$(PY) scripts/get_data.py
 	$(PY) scripts/reconstruct_delucionqa.py
 
-models:
-	$(PY) scripts/fetch_models.py nli embed
+models:      ## DeBERTa-v3-large NLI, bge-small, HHEM-2.1-Open (+ Flan-T5-base tokenizer), MiniCheck-Flan-T5-Large
+	$(PY) scripts/fetch_models.py nli embed hhem flan-t5-base minicheck
 
-features:
-	$(PY) scripts/build_features.py
+features:    ## zero-shot NLI and grounding features for train, rule-made contradictions, dev, test
+	$(PY) scripts/build_features.py --splits dev test train train_aug
 
-evaluate:
+verifier:    ## cross-fitted fine-tuning (about 1.5 h on an M5) and its scores
+	$(PY) scripts/train_verifier.py
+	$(PY) scripts/score_verifier.py
+
+detectors:   ## HHEM and MiniCheck scores for every evaluation set
+	$(PY) scripts/score_detectors.py hhem
+	$(PY) scripts/score_detectors.py minicheck
+
+evaluate:    ## model selection on train, thresholds on dev, test once -> results/delucionqa.*
 	$(PY) scripts/evaluate_delucionqa.py
 
 stress:
 	$(PY) scripts/quantstress.py
 
-finetune:
-	$(PY) scripts/finetune_verifier.py
+ragtruth:
+	$(PY) scripts/evaluate_ragtruth.py
+
+quantity-checker:
+	$(PY) scripts/eval_quantity_checker.py
+
+figures:
+	$(PY) scripts/make_figures.py
+
+all: features verifier detectors evaluate stress ragtruth quantity-checker figures
 
 serve:
 	PYTHONPATH=src .venv/bin/uvicorn claimgate.serve:app --port 8060

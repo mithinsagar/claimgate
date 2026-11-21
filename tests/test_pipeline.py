@@ -87,3 +87,22 @@ def test_contradiction_gate_needs_grounded_wording_and_no_entailment():
     df = pd.DataFrame({"c_win_max": [0.97, 0.97, 0.97, 0.5], "e_win_max": [0.01, 0.6, 0.01, 0.01], "e_chunk_max": [0.02, 0.0, 0.02, 0.02],
                        "novel_frac": [0.0, 0.0, 0.5, 0.0]})
     assert contradiction_gate(df).tolist() == [True, False, False, False]
+
+
+def test_contradictions_policy_only_blocks_contradictions(gate):
+    answer = "Check the tire pressure once a month when the tires are cold. Rotate tires every 5,000 miles for longer tread life."
+    strict = gate.verify(answer, EVIDENCE, policy="strict")
+    lenient = gate.verify(answer, EVIDENCE, policy="contradictions")
+    assert strict.verdict == "BLOCK"
+    assert lenient.verdict == "PASS" and lenient.warnings == 1
+    assert gate.verify("Tighten the lug nuts to 200 ft-lb.", EVIDENCE, policy="contradictions").verdict == "BLOCK"
+
+
+def test_api_key_is_enforced_when_set(gate, monkeypatch):
+    monkeypatch.setattr(serve, "gate", lambda: gate)
+    monkeypatch.setenv("CLAIMGATE_API_KEY", "s3cret")
+    client = TestClient(serve.app)
+    body = {"answer": "Do not drive the spare above 50 mph.", "evidence": EVIDENCE}
+    assert client.post("/verify", json=body).status_code == 401
+    assert client.post("/verify", json=body, headers={"X-API-Key": "s3cret"}).status_code == 200
+    assert client.post("/verify", json={**body, "policy": "lenient"}).status_code in (401, 422)
