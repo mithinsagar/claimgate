@@ -15,8 +15,8 @@ models:      ## DeBERTa-v3-large NLI, bge-small, HHEM-2.1-Open (+ Flan-T5-base t
 features:    ## zero-shot NLI and grounding features for train, rule-made contradictions, dev, test
 	$(PY) scripts/build_features.py --splits dev test train train_aug
 
-verifier:    ## cross-fitted fine-tuning (about 1.5 h on an M5) and its scores
-	$(PY) scripts/train_verifier.py
+verifier:    ## cross-fitted fine-tuning (about 1.5 h on an M5) and its scores; one process per fold so MPS memory is released
+	for k in 0 1 2; do $(PY) scripts/train_verifier.py --only-fold $$k || exit 1; done
 	$(PY) scripts/score_verifier.py
 
 detectors:   ## HHEM and MiniCheck scores for every evaluation set

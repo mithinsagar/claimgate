@@ -6,7 +6,9 @@ decision layer. Dev and test are never used here; the three fold models are aver
 
 Stable on a 16 GB Apple M5: float32 master weights with float16 autocast (the checkpoint is stored in float16, and
 training it in float16 makes AdamW divide by underflowed second moments), embeddings and the lower 16 of 24 layers
-frozen, batch 4 x 4 accumulation, premises limited to the claim's best evidence windows.
+frozen, batch 4 x 4 accumulation, premises limited to the claim's best evidence windows. Run one fold per process
+(`--only-fold k`, as `make verifier` does): MPS does not hand memory back between folds, and a second fold in the same
+process ran at a third of the speed while the machine swapped.
 """
 from __future__ import annotations
 
