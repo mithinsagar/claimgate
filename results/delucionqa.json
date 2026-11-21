@@ -1,0 +1,616 @@
+{
+ "published_test_macro_f1": {
+  "Sim-overlap": 71.09,
+  "Sim-hybrid": 70.81,
+  "Sim-cosine": 69.45,
+  "Keyword-match": 52.77
+ },
+ "results": [
+  {
+   "system": "Sim-overlap (Bosch method, our run)",
+   "threshold": 0.2,
+   "test": {
+    "macro_f1": 0.7100074607853841,
+    "hallucinated_precision": 0.5981012658227848,
+    "hallucinated_recall": 0.75,
+    "hallucinated_f1": 0.6654929577464789,
+    "accuracy": 0.7168405365126677,
+    "n": 671
+   },
+   "test_ci95": [
+    0.6744387877131239,
+    0.7442444327282769
+   ],
+   "test_complete_contexts": {
+    "macro_f1": 0.7136504951703682,
+    "hallucinated_precision": 0.5945017182130584,
+    "hallucinated_recall": 0.7521739130434782,
+    "hallucinated_f1": 0.6641074856046065,
+    "accuracy": 0.7222222222222222,
+    "n": 630
+   }
+  },
+  {
+   "system": "NLI zero-shot (DeBERTa-v3-large)",
+   "threshold": 0.7874,
+   "dev_macro_f1": 0.7857142857142858,
+   "test": {
+    "macro_f1": 0.7553921866456041,
+    "hallucinated_precision": 0.7934782608695652,
+    "hallucinated_recall": 0.5793650793650794,
+    "hallucinated_f1": 0.6697247706422018,
+    "accuracy": 0.7853949329359166,
+    "n": 671,
+    "roc_auc": 0.8375430920180325
+   },
+   "test_ci95": [
+    0.7202330459699172,
+    0.7895106617408776
+   ],
+   "test_complete_contexts": {
+    "macro_f1": 0.7569444444444444,
+    "hallucinated_precision": 0.7951807228915663,
+    "hallucinated_recall": 0.5739130434782609,
+    "hallucinated_f1": 0.6666666666666666,
+    "accuracy": 0.7904761904761904,
+    "n": 630
+   },
+   "abstention": [
+    {
+     "coverage": 1.0,
+     "accuracy": 0.7853949329359166,
+     "macro_f1": 0.7553921866456041,
+     "n": 671
+    },
+    {
+     "coverage": 0.9,
+     "accuracy": 0.8112582781456954,
+     "macro_f1": 0.7744496855345913,
+     "n": 604
+    },
+    {
+     "coverage": 0.8,
+     "accuracy": 0.8305400372439479,
+     "macro_f1": 0.7873544962033028,
+     "n": 537
+    },
+    {
+     "coverage": 0.7,
+     "accuracy": 0.8425531914893617,
+     "macro_f1": 0.7790286919616762,
+     "n": 470
+    },
+    {
+     "coverage": 0.6,
+     "accuracy": 0.8486352357320099,
+     "macro_f1": 0.7610354514790081,
+     "n": 403
+    },
+    {
+     "coverage": 0.5,
+     "accuracy": 0.8601190476190477,
+     "macro_f1": 0.7426629947691756,
+     "n": 336
+    }
+   ],
+   "vs_sim_overlap": {
+    "mean_diff": 0.04567735860538194,
+    "ci95": [
+     0.005126344728605778,
+     0.0865043193641088
+    ],
+    "p_a_not_better": 0.0145
+   }
+  },
+  {
+   "system": "NLI zero-shot + quantity checks",
+   "threshold": 0.7874,
+   "dev_macro_f1": 0.7857142857142858,
+   "test": {
+    "macro_f1": 0.7539856126022478,
+    "hallucinated_precision": 0.7891891891891892,
+    "hallucinated_recall": 0.5793650793650794,
+    "hallucinated_f1": 0.6681922196796338,
+    "accuracy": 0.7839046199701938,
+    "n": 671,
+    "roc_auc": 0.8357625866575747
+   },
+   "test_ci95": [
+    0.7188547352372777,
+    0.7879530110932002
+   ],
+   "test_complete_contexts": {
+    "macro_f1": 0.7554369240917542,
+    "hallucinated_precision": 0.7904191616766467,
+    "hallucinated_recall": 0.5739130434782609,
+    "hallucinated_f1": 0.6649874055415617,
+    "accuracy": 0.7888888888888889,
+    "n": 630
+   },
+   "abstention": [
+    {
+     "coverage": 1.0,
+     "accuracy": 0.7839046199701938,
+     "macro_f1": 0.7539856126022478,
+     "n": 671
+    },
+    {
+     "coverage": 0.9,
+     "accuracy": 0.8096026490066225,
+     "macro_f1": 0.7728335628108984,
+     "n": 604
+    },
+    {
+     "coverage": 0.8,
+     "accuracy": 0.8305400372439479,
+     "macro_f1": 0.7873544962033028,
+     "n": 537
+    },
+    {
+     "coverage": 0.7,
+     "accuracy": 0.8404255319148937,
+     "macro_f1": 0.7767560275872551,
+     "n": 470
+    },
+    {
+     "coverage": 0.6,
+     "accuracy": 0.8461538461538461,
+     "macro_f1": 0.7582623839009288,
+     "n": 403
+    },
+    {
+     "coverage": 0.5,
+     "accuracy": 0.8571428571428571,
+     "macro_f1": 0.7391135554836623,
+     "n": 336
+    }
+   ],
+   "vs_sim_overlap": {
+    "mean_diff": 0.04426841541099975,
+    "ci95": [
+     0.0035230912209969997,
+     0.08510651012419822
+    ],
+    "p_a_not_better": 0.0163
+   }
+  },
+  {
+   "system": "LLM judge zero-shot (Qwen2.5-7B-Instruct, 4-bit)",
+   "threshold": 0.1128,
+   "dev_macro_f1": 0.7655034895314058,
+   "test": {
+    "macro_f1": 0.730946299156469,
+    "hallucinated_precision": 0.7205882352941176,
+    "hallucinated_recall": 0.5833333333333334,
+    "hallucinated_f1": 0.6447368421052632,
+    "accuracy": 0.7585692995529061,
+    "n": 671,
+    "roc_auc": 0.8114889949615487
+   },
+   "test_ci95": [
+    0.6948859728001309,
+    0.7656385281385281
+   ],
+   "test_complete_contexts": {
+    "macro_f1": 0.7306770020865243,
+    "hallucinated_precision": 0.7068062827225131,
+    "hallucinated_recall": 0.5869565217391305,
+    "hallucinated_f1": 0.6413301662707839,
+    "accuracy": 0.7603174603174603,
+    "n": 630
+   },
+   "abstention": [
+    {
+     "coverage": 1.0,
+     "accuracy": 0.7585692995529061,
+     "macro_f1": 0.730946299156469,
+     "n": 671
+    },
+    {
+     "coverage": 0.9,
+     "accuracy": 0.7864238410596026,
+     "macro_f1": 0.7560909947503028,
+     "n": 604
+    },
+    {
+     "coverage": 0.8,
+     "accuracy": 0.8081936685288641,
+     "macro_f1": 0.7758446705815127,
+     "n": 537
+    },
+    {
+     "coverage": 0.7,
+     "accuracy": 0.8382978723404255,
+     "macro_f1": 0.8090288915976989,
+     "n": 470
+    },
+    {
+     "coverage": 0.6,
+     "accuracy": 0.8362282878411911,
+     "macro_f1": 0.8181706316652995,
+     "n": 403
+    },
+    {
+     "coverage": 0.5,
+     "accuracy": 0.8273809523809523,
+     "macro_f1": 0.8200088665582976,
+     "n": 336
+    }
+   ],
+   "vs_sim_overlap": {
+    "mean_diff": 0.021209518379992544,
+    "ci95": [
+     -0.021899680593906123,
+     0.06427979663841799
+    ],
+    "p_a_not_better": 0.1651
+   }
+  },
+  {
+   "system": "ClaimGate",
+   "threshold": 0.3,
+   "dev_macro_f1": 0.8267392199796215,
+   "test": {
+    "macro_f1": 0.7640982060744346,
+    "hallucinated_precision": 0.6836363636363636,
+    "hallucinated_recall": 0.746031746031746,
+    "hallucinated_f1": 0.713472485768501,
+    "accuracy": 0.7749627421758569,
+    "n": 671,
+    "roc_auc": 0.8526110921695648
+   },
+   "test_ci95": [
+    0.7304100858963702,
+    0.7964052855273367
+   ],
+   "test_complete_contexts": {
+    "macro_f1": 0.7621629436853901,
+    "hallucinated_precision": 0.680161943319838,
+    "hallucinated_recall": 0.7304347826086957,
+    "hallucinated_f1": 0.7044025157232704,
+    "accuracy": 0.7761904761904762,
+    "n": 630
+   },
+   "abstention": [
+    {
+     "coverage": 1.0,
+     "accuracy": 0.7749627421758569,
+     "macro_f1": 0.7640982060744346,
+     "n": 671
+    },
+    {
+     "coverage": 0.9,
+     "accuracy": 0.8162251655629139,
+     "macro_f1": 0.8002115771437086,
+     "n": 604
+    },
+    {
+     "coverage": 0.8,
+     "accuracy": 0.845437616387337,
+     "macro_f1": 0.8273064360521207,
+     "n": 537
+    },
+    {
+     "coverage": 0.7,
+     "accuracy": 0.8680851063829788,
+     "macro_f1": 0.8575172602632557,
+     "n": 470
+    },
+    {
+     "coverage": 0.6,
+     "accuracy": 0.890818858560794,
+     "macro_f1": 0.8822013180272108,
+     "n": 403
+    },
+    {
+     "coverage": 0.5,
+     "accuracy": 0.9136904761904762,
+     "macro_f1": 0.8958696232968207,
+     "n": 336
+    }
+   ],
+   "sentence_ece_test": 0.021641224710437376,
+   "review_band_logit": 0.8401015935166086,
+   "vs_sim_overlap": {
+    "mean_diff": 0.05427175288629104,
+    "ci95": [
+     0.021440047093157943,
+     0.08643881175936224
+    ],
+    "p_a_not_better": 0.0008
+   }
+  },
+  {
+   "system": "ClaimGate without contradiction gate",
+   "threshold": 0.3,
+   "dev_macro_f1": 0.8267392199796215,
+   "test": {
+    "macro_f1": 0.7669079675934021,
+    "hallucinated_precision": 0.6886446886446886,
+    "hallucinated_recall": 0.746031746031746,
+    "hallucinated_f1": 0.7161904761904762,
+    "accuracy": 0.7779433681073026,
+    "n": 671,
+    "roc_auc": 0.8587670947456151
+   },
+   "test_ci95": [
+    0.7333575283907414,
+    0.7989670890211261
+   ],
+   "test_complete_contexts": {
+    "macro_f1": 0.765149178679182,
+    "hallucinated_precision": 0.6857142857142857,
+    "hallucinated_recall": 0.7304347826086957,
+    "hallucinated_f1": 0.7073684210526315,
+    "accuracy": 0.7793650793650794,
+    "n": 630
+   },
+   "abstention": [
+    {
+     "coverage": 1.0,
+     "accuracy": 0.7779433681073026,
+     "macro_f1": 0.7669079675934021,
+     "n": 671
+    },
+    {
+     "coverage": 0.9,
+     "accuracy": 0.8195364238410596,
+     "macro_f1": 0.8034083138491491,
+     "n": 604
+    },
+    {
+     "coverage": 0.8,
+     "accuracy": 0.8547486033519553,
+     "macro_f1": 0.8356638418079096,
+     "n": 537
+    },
+    {
+     "coverage": 0.7,
+     "accuracy": 0.8680851063829788,
+     "macro_f1": 0.8567890070573434,
+     "n": 470
+    },
+    {
+     "coverage": 0.6,
+     "accuracy": 0.8982630272952854,
+     "macro_f1": 0.888364896729253,
+     "n": 403
+    },
+    {
+     "coverage": 0.5,
+     "accuracy": 0.9196428571428571,
+     "macro_f1": 0.8993062878073146,
+     "n": 336
+    }
+   ],
+   "sentence_ece_test": 0.021641224710437376,
+   "vs_sim_overlap": {
+    "mean_diff": 0.05709808924413562,
+    "ci95": [
+     0.02443714850448724,
+     0.08915040644621636
+    ],
+    "p_a_not_better": 0.0005
+   }
+  },
+  {
+   "system": "ClaimGate without NLI",
+   "threshold": 0.4425,
+   "dev_macro_f1": 0.8185903983656793,
+   "test": {
+    "macro_f1": 0.7693124065769805,
+    "hallucinated_precision": 0.7878787878787878,
+    "hallucinated_recall": 0.6190476190476191,
+    "hallucinated_f1": 0.6933333333333334,
+    "accuracy": 0.7943368107302533,
+    "n": 671,
+    "roc_auc": 0.8495188847217487
+   },
+   "test_ci95": [
+    0.7351849233856156,
+    0.8023525253318671
+   ],
+   "test_complete_contexts": {
+    "macro_f1": 0.7637890656545263,
+    "hallucinated_precision": 0.7840909090909091,
+    "hallucinated_recall": 0.6,
+    "hallucinated_f1": 0.6798029556650246,
+    "accuracy": 0.7936507936507936,
+    "n": 630
+   },
+   "abstention": [
+    {
+     "coverage": 1.0,
+     "accuracy": 0.7943368107302533,
+     "macro_f1": 0.7693124065769805,
+     "n": 671
+    },
+    {
+     "coverage": 0.9,
+     "accuracy": 0.8162251655629139,
+     "macro_f1": 0.7821089065470677,
+     "n": 604
+    },
+    {
+     "coverage": 0.8,
+     "accuracy": 0.8324022346368715,
+     "macro_f1": 0.7864980916030535,
+     "n": 537
+    },
+    {
+     "coverage": 0.7,
+     "accuracy": 0.8574468085106383,
+     "macro_f1": 0.8239552760307477,
+     "n": 470
+    },
+    {
+     "coverage": 0.6,
+     "accuracy": 0.890818858560794,
+     "macro_f1": 0.8506502257260293,
+     "n": 403
+    },
+    {
+     "coverage": 0.5,
+     "accuracy": 0.9077380952380952,
+     "macro_f1": 0.8663364430813454,
+     "n": 336
+    }
+   ],
+   "sentence_ece_test": 0.01999469944184619,
+   "vs_sim_overlap": {
+    "mean_diff": 0.05937915543420884,
+    "ci95": [
+     0.024135899821473877,
+     0.09422982008529833
+    ],
+    "p_a_not_better": 0.0007
+   }
+  },
+  {
+   "system": "ClaimGate without quantity checks",
+   "threshold": 0.1723,
+   "dev_macro_f1": 0.821875,
+   "test": {
+    "macro_f1": 0.7609736790025727,
+    "hallucinated_precision": 0.68,
+    "hallucinated_recall": 0.7420634920634921,
+    "hallucinated_f1": 0.7096774193548387,
+    "accuracy": 0.7719821162444114,
+    "n": 671,
+    "roc_auc": 0.851820282607872
+   },
+   "test_ci95": [
+    0.7273094617791563,
+    0.7938904930211788
+   ],
+   "test_complete_contexts": {
+    "macro_f1": 0.7587893684185161,
+    "hallucinated_precision": 0.6761133603238867,
+    "hallucinated_recall": 0.7260869565217392,
+    "hallucinated_f1": 0.70020964360587,
+    "accuracy": 0.773015873015873,
+    "n": 630
+   },
+   "abstention": [
+    {
+     "coverage": 1.0,
+     "accuracy": 0.7719821162444114,
+     "macro_f1": 0.7609736790025727,
+     "n": 671
+    },
+    {
+     "coverage": 0.9,
+     "accuracy": 0.7814569536423841,
+     "macro_f1": 0.7752976190476191,
+     "n": 604
+    },
+    {
+     "coverage": 0.8,
+     "accuracy": 0.8063314711359404,
+     "macro_f1": 0.803451770933048,
+     "n": 537
+    },
+    {
+     "coverage": 0.7,
+     "accuracy": 0.8446808510638298,
+     "macro_f1": 0.84201971645509,
+     "n": 470
+    },
+    {
+     "coverage": 0.6,
+     "accuracy": 0.8784119106699751,
+     "macro_f1": 0.8766621904375254,
+     "n": 403
+    },
+    {
+     "coverage": 0.5,
+     "accuracy": 0.8779761904761905,
+     "macro_f1": 0.877845267124806,
+     "n": 336
+    }
+   ],
+   "sentence_ece_test": 0.020868160353840523,
+   "vs_sim_overlap": {
+    "mean_diff": 0.051124509010860304,
+    "ci95": [
+     0.018664389947937236,
+     0.08329764648681832
+    ],
+    "p_a_not_better": 0.0014
+   }
+  },
+  {
+   "system": "ClaimGate + LLM judge as a feature",
+   "threshold": 0.1793,
+   "dev_macro_f1": 0.8225527499135248,
+   "test": {
+    "macro_f1": 0.7602014294996751,
+    "hallucinated_precision": 0.675,
+    "hallucinated_recall": 0.75,
+    "hallucinated_f1": 0.7105263157894737,
+    "accuracy": 0.7704918032786885,
+    "n": 671,
+    "roc_auc": 0.8505606697730803
+   },
+   "test_ci95": [
+    0.7262951014202543,
+    0.7923895738388897
+   ],
+   "test_complete_contexts": {
+    "macro_f1": 0.7595670124553309,
+    "hallucinated_precision": 0.6733067729083665,
+    "hallucinated_recall": 0.7347826086956522,
+    "hallucinated_f1": 0.7027027027027027,
+    "accuracy": 0.773015873015873,
+    "n": 630
+   },
+   "abstention": [
+    {
+     "coverage": 1.0,
+     "accuracy": 0.7704918032786885,
+     "macro_f1": 0.7602014294996751,
+     "n": 671
+    },
+    {
+     "coverage": 0.9,
+     "accuracy": 0.7731788079470199,
+     "macro_f1": 0.7679105838136508,
+     "n": 604
+    },
+    {
+     "coverage": 0.8,
+     "accuracy": 0.8063314711359404,
+     "macro_f1": 0.8030803080308031,
+     "n": 537
+    },
+    {
+     "coverage": 0.7,
+     "accuracy": 0.8595744680851064,
+     "macro_f1": 0.8555973484284225,
+     "n": 470
+    },
+    {
+     "coverage": 0.6,
+     "accuracy": 0.8660049627791563,
+     "macro_f1": 0.8655670867309118,
+     "n": 403
+    },
+    {
+     "coverage": 0.5,
+     "accuracy": 0.8720238095238095,
+     "macro_f1": 0.8716953652970063,
+     "n": 336
+    }
+   ],
+   "sentence_ece_test": 0.020629020529086408,
+   "vs_sim_overlap": {
+    "mean_diff": 0.05035225769606044,
+    "ci95": [
+     0.01777848622594283,
+     0.0824915587575035
+    ],
+    "p_a_not_better": 0.0016
+   }
+  }
+ ]
+}
