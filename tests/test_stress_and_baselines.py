@@ -37,3 +37,11 @@ def test_overlap_ratio_counts_long_phrases_only():
     # shorter sentence has 6 tokens -> phrases must be longer than min(4, 1.8) tokens; single shared words do not count
     assert overlap_ratio(a, "pressure gauges are sold separately cold".split()) == 0.0
     assert overlap_ratio(a, "always check the tire pressure first".split()) == 4 / 6
+
+
+def test_ragtruth_sentence_offsets_match_text():
+    from claimgate.ragtruth import _sentences_with_offsets
+    text = "Mechanics earn about $20 an hour. Pay varies by state!\nSome are paid per job."
+    parts = _sentences_with_offsets(text)
+    assert [p[0] for p in parts] == ["Mechanics earn about $20 an hour.", "Pay varies by state!", "Some are paid per job."]
+    assert all(text[s:e].strip() == t for t, s, e in parts)

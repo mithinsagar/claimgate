@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import sqlite3
 import sys
 import time
@@ -17,6 +18,8 @@ DEFAULT_MODEL = ROOT / "models" / "deberta-v3-large-nli"
 
 
 def device() -> str:
+    if os.environ.get("CLAIMGATE_DEVICE"):
+        return os.environ["CLAIMGATE_DEVICE"]
     return "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
 
 

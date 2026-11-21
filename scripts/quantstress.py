@@ -24,7 +24,7 @@ def main() -> None:
     thr = {r["system"]: r["threshold"] for r in res["results"]}
     import joblib
     gate = joblib.load(MODEL_PATH)
-    nli = NLI()
+    nli = NLI(verbose=True)
     items = generate(load_delucionqa("dev") + load_delucionqa("test"))
     exs = [as_example(it, ex, i) for i, (it, ex) in enumerate(items)]
     df = sentence_features(exs, nli)
