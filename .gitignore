@@ -1,0 +1,11 @@
+.venv/
+/data/
+/third_party/
+/artifacts/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+*.log
+/models/
