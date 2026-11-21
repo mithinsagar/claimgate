@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 
 from claimgate import serve
 from claimgate.decide import SentenceModel, answer_scores, tune_threshold
-from claimgate.features import FEATURES
 from claimgate.pipeline import ClaimGate, split_claims
 from claimgate.text import content_words
 
@@ -24,12 +23,14 @@ class StubNLI:
 
 
 def toy_model() -> SentenceModel:
+    """Risk model on the two NLI features only, so verdicts depend on the stub's entailment and nothing else."""
     rng = np.random.default_rng(0)
     n = 400
-    df = pd.DataFrame(rng.random((n, len(FEATURES))), columns=FEATURES)
+    feats = ["e_win_max", "c_at_best"]
+    df = pd.DataFrame(rng.random((n, 2)), columns=feats)
     df["target"] = (df.e_win_max < 0.5).astype(int)
     df["uid"] = [f"a{i // 2}" for i in range(n)]
-    return SentenceModel.fit(df, FEATURES, seeds=1, folds=3)
+    return SentenceModel.fit(df, feats, seeds=1, folds=3)
 
 
 @pytest.fixture(scope="module")
@@ -54,7 +55,7 @@ def test_supported_and_contradicted(gate):
 def test_converted_value_is_not_contradicted(gate):
     rep = gate.verify("Tighten the lug nuts to 176 N·m.", EVIDENCE)
     assert rep.claims[0].verdict == "SUPPORTED"
-    assert any("unit conversion" in p for p in rep.claims[0].proof)
+    assert any("after unit conversion" in p for p in rep.claims[0].proof)
 
 
 def test_unsupported_claim(gate):

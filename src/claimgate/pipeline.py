@@ -81,8 +81,7 @@ class ClaimGate:
             row = df.iloc[j]
             qv = quantities.check(claim, evidence)
             bad = [v for v in qv if v.status in ("mismatch", "unit_mismatch")]
-            _, rewrites = quantities.canonicalize(claim, evidence)
-            proof = [v.proof for v in qv] + rewrites
+            proof = [v.proof for v in qv]
             r = float(risk[j])
             if bad:
                 verdict, r = "CONTRADICTED", max(r, 0.99)

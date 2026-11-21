@@ -49,3 +49,13 @@ def test_canonicalize_rewrites_converted_values_only():
     assert "130 ft-lb" in new and notes
     same, none = canonicalize("Tighten the lug nuts to 200 Nm.", "tighten lug nuts to 130 ft-lb .")
     assert same == "Tighten the lug nuts to 200 Nm." and not none
+
+
+def test_contradiction_needs_an_evidence_sentence_about_the_same_thing():
+    ev = "Check the lug nut torque again after the first 25 miles. The spare should not be driven above 50 mph."
+    assert statuses("Rotate your tires every 5,000 miles.", ev) == ["absent"]
+    assert statuses("The spare can be driven at 70 mph.", ev) == ["mismatch"]
+
+
+def test_number_words_with_single_letter_are_not_units():
+    assert [q.unit for q in extract("Check it once a month and two a year.")] == [None]

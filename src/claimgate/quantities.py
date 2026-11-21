@@ -83,10 +83,13 @@ def extract(text: str) -> list[Quantity]:
         out.append(Quantity(_to_float(num), float(high) if high else None, u, m.group(0).strip()))
     for m in WORD_RE.finditer(text):
         word, unit = m.group(1).lower(), m.group(2)
+        if unit and len(unit) == 1:
+            unit = None  # "once a month", "two a day": a single letter after a number word is an article, not a unit
         u = UNIT_ALIASES.get(unit.lower()) if unit else None
         if u is None and word in {"one", "once", "half"}:
             continue  # "one of the", "once the engine" are rarely quantities without a unit
-        out.append(Quantity(float(WORD_NUMBERS[word]), None, u, m.group(0).strip()))
+        text_ = m.group(0).strip() if unit else m.group(1)
+        out.append(Quantity(float(WORD_NUMBERS[word]), None, u, text_))
     return out
 
 
@@ -101,9 +104,37 @@ class QuantityVerdict:
     proof: str
 
 
+_EV_SENT = re.compile(r"(?<=[.!?])\s+|\n+")
+_WORD = re.compile(r"[a-z][a-z\-']+")
+_STOP = {"the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with", "is", "are", "be", "can", "should", "will", "your", "you",
+         "it", "this", "that", "at", "by", "from", "up", "not", "do", "does", "every", "after", "before", "about", "than", "more", "less"}
+
+
+def _topic_words(text: str) -> set[str]:
+    return {w.rstrip("s") for w in _WORD.findall(text.lower()) if w not in _STOP and w not in UNIT_ALIASES}
+
+
+def _related_evidence(claim: str, evidence: str) -> str:
+    """Evidence sentences about the same thing as the claim: they share at least min(2, n) topic words with it."""
+    cw = _topic_words(claim)
+    need = min(2, len(cw))
+    sents = [x for x in _EV_SENT.split(evidence) if x.strip()]
+    return " ".join(x for x in sents if len(cw & _topic_words(x)) >= need)
+
+
+def _unit_text(q: Quantity) -> str:
+    m = re.match(r"[\d.,/]+(?:\s*(?:-|to|–)\s*[\d.]+)?\s*", q.text)
+    return q.text[m.end():] if m else (q.unit or "")
+
+
 def check(claim: str, evidence: str) -> list[QuantityVerdict]:
-    """Verdict for every quantity in the claim against the evidence text."""
+    """Verdict for every quantity in the claim against the evidence text.
+
+    A value anywhere in the evidence can support a claim, but only a value in an evidence sentence about the same thing
+    can contradict it: "rotate tires every 5,000 miles" is not contradicted by "check the torque after 25 miles".
+    """
     ev = extract(evidence)
+    related = extract(_related_evidence(claim, evidence))
     out = []
     for q in extract(claim):
         same_value = [e for e in ev if _close(e.value, q.value) or (e.high is not None and e.value <= q.value <= e.high)]
@@ -113,20 +144,24 @@ def check(claim: str, evidence: str) -> list[QuantityVerdict]:
             out.append(QuantityVerdict(q, status, proof))
             continue
         dim = _dimensionality(q.unit)
-        comparable = [e for e in ev if e.unit and _dimensionality(e.unit) == dim]
-        match = next((e for e in comparable if _close(e.magnitude_in(q.unit) or float("nan"), q.value)
+        anywhere = [e for e in ev if e.unit and _dimensionality(e.unit) == dim]
+        comparable = [e for e in related if e.unit and _dimensionality(e.unit) == dim]
+        match = next((e for e in anywhere if _close(e.magnitude_in(q.unit) or float("nan"), q.value)
                       or (e.high is not None and (e.magnitude_in(q.unit) or 0) <= q.value <= UREG.Quantity(e.high, e.unit).to(q.unit).magnitude)), None)
         if match:
-            out.append(QuantityVerdict(q, "supported", f"'{q.text}' equals evidence '{match.text}'"))
+            how = "" if match.unit == q.unit else " after unit conversion"
+            out.append(QuantityVerdict(q, "supported", f"'{q.text}' matches evidence '{match.text}'{how}"))
         elif any(_close(e.value, q.value) for e in comparable):
             e = next(e for e in comparable if _close(e.value, q.value))
             conv = e.magnitude_in(q.unit)
-            out.append(QuantityVerdict(q, "unit_mismatch", f"claim '{q.text}' but evidence '{e.text}' = {conv:.3g} {q.unit}; same number, different unit"))
+            out.append(QuantityVerdict(q, "unit_mismatch", f"claim '{q.text}' but evidence '{e.text}', which is {conv:.3g} {_unit_text(q)}: "
+                                                           "same number, different unit"))
         elif comparable:
             e = comparable[0]
             conv = e.magnitude_in(q.unit)
             diff = abs(conv - q.value) / max(abs(conv), 1e-9) if conv is not None else float("nan")
-            out.append(QuantityVerdict(q, "mismatch", f"claim '{q.text}' but evidence '{e.text}' = {conv:.3g} {q.unit} ({diff:.0%} difference)"))
+            said = f"'{e.text}'" if e.unit == q.unit else f"'{e.text}', which is {conv:.3g} {_unit_text(q)}"
+            out.append(QuantityVerdict(q, "mismatch", f"claim '{q.text}' but evidence says {said} ({diff:.0%} difference)"))
         elif same_value:
             out.append(QuantityVerdict(q, "supported", f"value {q.value:g} appears in the evidence without a comparable unit"))
         else:
