@@ -23,6 +23,7 @@ from claimgate.decide import SentenceModel
 from claimgate.features import sentence_features
 
 MODEL_PATH = ROOT / "artifacts" / "claimgate_model.joblib"
+LLM_MODEL_PATH = ROOT / "artifacts" / "claimgate_llm_model.joblib"
 _SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"(])|\n+")
 
 
@@ -51,13 +52,15 @@ class Report:
 
 
 class ClaimGate:
-    def __init__(self, nli, model: SentenceModel, threshold: float, band: float = 0.1):
-        self.nli, self.model, self.threshold, self.band = nli, model, threshold, band
+    def __init__(self, nli, model: SentenceModel, threshold: float, band: float = 0.1, llm=None):
+        self.nli, self.model, self.threshold, self.band, self.llm = nli, model, threshold, band, llm
+        if "llm_yes" in model.features and llm is None and nli is not None:
+            raise ValueError("this model uses the LLM judge feature; pass llm=LLMJudge()")
 
     @classmethod
-    def load(cls, nli, path: Path = MODEL_PATH) -> ClaimGate:
+    def load(cls, nli, path: Path = MODEL_PATH, llm=None) -> ClaimGate:
         d = joblib.load(path)
-        return cls(nli, d["model"], d["threshold"], d.get("band", 0.1))
+        return cls(nli, d["model"], d["threshold"], d.get("band", 0.1), llm)
 
     def save(self, path: Path = MODEL_PATH) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -68,6 +71,8 @@ class ClaimGate:
         ex = Example(uid="live", split="live", question=question, context=" ".join(bosch_tokens(evidence)), context_cased=evidence,
                      answer=answer, sentences=claims, sentence_labels=["Supported"] * len(claims), label=0, meta={"evidence": evidence})
         df = sentence_features([ex], self.nli)
+        if "llm_yes" in self.model.features:
+            df["llm_yes"] = self.llm.score(evidence, question, answer, claims)
         risk = self.model.predict_proba(df)
         out = []
         for j, claim in enumerate(claims):

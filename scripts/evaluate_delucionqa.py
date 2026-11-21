@@ -19,12 +19,29 @@ from claimgate.baselines import sim_overlap_predict  # noqa: E402
 from claimgate.data import ROOT, load_delucionqa  # noqa: E402
 from claimgate.decide import SentenceModel, abstention_curve, answer_scores, tune_threshold  # noqa: E402
 from claimgate.features import FEATURES  # noqa: E402
-from claimgate.metrics import bootstrap_macro_f1, macro_f1, paired_bootstrap, report  # noqa: E402
-from claimgate.pipeline import ClaimGate  # noqa: E402
+from claimgate.metrics import (  # noqa: E402
+    bootstrap_macro_f1,
+    expected_calibration_error,  # noqa: E402
+    macro_f1,
+    paired_bootstrap,
+    report,
+)
+from claimgate.pipeline import LLM_MODEL_PATH, MODEL_PATH, ClaimGate  # noqa: E402
 
 PUBLISHED = {"Sim-overlap": 71.09, "Sim-hybrid": 70.81, "Sim-cosine": 69.45, "Keyword-match": 52.77}
 NLI_COLS = ["e_win_max", "c_at_best", "n_at_best", "c_win_max", "e_win_mean", "e_chunk_max", "c_chunk_max", "n_chunk_min"]
 Q_COLS = ["q_n", "q_supported", "q_mismatch", "q_unit_mismatch", "q_absent"]
+
+
+def with_llm(df: pd.DataFrame, split: str) -> pd.DataFrame:
+    """Attach the LLM judge's per-sentence P(supported) when artifacts/llm/<split>.jsonl covers every answer."""
+    path = ROOT / "artifacts" / "llm" / f"{split}.jsonl"
+    if not path.exists():
+        return df
+    rows = [(r["uid"], j, p) for r in map(json.loads, open(path)) for j, p in enumerate(r["p_yes"])]
+    llm = pd.DataFrame(rows, columns=["uid", "sent_idx", "llm_yes"]).drop_duplicates(["uid", "sent_idx"])
+    out = df.merge(llm, on=["uid", "sent_idx"], how="left")
+    return out if out.llm_yes.notna().all() else df
 
 
 def unsup_score(df: pd.DataFrame, use_quantities: bool) -> np.ndarray:
@@ -51,7 +68,8 @@ def main() -> None:
     ap.add_argument("--tag", default="deberta-v3-large-nli")
     args = ap.parse_args()
     fdir = ROOT / "artifacts" / "features"
-    tr, dv, te = (pd.read_parquet(fdir / f"{s}_{args.tag}.parquet") for s in ("train", "dev", "test"))
+    tr, dv, te = (with_llm(pd.read_parquet(fdir / f"{s}_{args.tag}.parquet"), s) for s in ("train", "dev", "test"))
+    has_llm = all("llm_yes" in d for d in (tr, dv, te))
     complete = set(te.loc[te.coverage == 1.0, "uid"])
     results = []
 
@@ -66,13 +84,20 @@ def main() -> None:
 
     results.append(evaluate("NLI zero-shot (DeBERTa-v3-large)", dv, te, unsup_score(dv, False), unsup_score(te, False), complete))
     results.append(evaluate("NLI zero-shot + quantity checks", dv, te, unsup_score(dv, True), unsup_score(te, True), complete))
-    for name, feats in [("ClaimGate (all evidence features)", FEATURES),
-                        ("ClaimGate without NLI", [f for f in FEATURES if f not in NLI_COLS]),
-                        ("ClaimGate without quantity checks", [f for f in FEATURES if f not in Q_COLS])]:
+    if has_llm:
+        results.append(evaluate("LLM judge zero-shot (Qwen2.5-7B-Instruct, 4-bit)", dv, te, 1 - dv.llm_yes.to_numpy(), 1 - te.llm_yes.to_numpy(), complete))
+    systems = [("ClaimGate light (no LLM)", FEATURES, MODEL_PATH),
+               ("ClaimGate light without NLI", [f for f in FEATURES if f not in NLI_COLS], None),
+               ("ClaimGate light without quantity checks", [f for f in FEATURES if f not in Q_COLS], None)]
+    if has_llm:
+        systems.insert(0, ("ClaimGate (evidence features + LLM judge)", FEATURES + ["llm_yes"], LLM_MODEL_PATH))
+    for name, feats, path in systems:
         m = SentenceModel.fit(tr, feats)
-        results.append(evaluate(name, dv, te, m.predict_proba(dv), m.predict_proba(te), complete))
-        if feats is FEATURES:
-            ClaimGate(None, m, results[-1]["threshold"]).save()
+        r = evaluate(name, dv, te, m.predict_proba(dv), m.predict_proba(te), complete)
+        r["sentence_ece_test"] = expected_calibration_error(te.target, m.predict_proba(te))
+        results.append(r)
+        if path:
+            ClaimGate(None, m, r["threshold"]).save(path)
 
     ref = results[0]["_pred"]
     for r in results[1:]:
@@ -82,15 +107,17 @@ def main() -> None:
     out.mkdir(exist_ok=True)
     clean = [{k: v for k, v in r.items() if k != "_pred"} for r in results]
     (out / "delucionqa.json").write_text(json.dumps({"published_test_macro_f1": PUBLISHED, "results": clean}, indent=1))
-    lines = ["| System | Test macro F1 (671) | 95% CI | Complete contexts (630) | Hallucinated P / R | Dev macro F1 |", "|---|---|---|---|---|---|"]
+    lines = ["| System | Test macro F1 (671) | 95% CI | Complete contexts (630) | Hallucinated P / R | Test AUC | Dev macro F1 |",
+             "|---|---|---|---|---|---|---|"]
     for k, v in PUBLISHED.items():
-        lines.append(f"| {k} (published, Sadat et al. 2023) | {v:.2f} | | | | |")
+        lines.append(f"| {k} (published, Sadat et al. 2023) | {v:.2f} | | | | | |")
     for r in clean:
-        t = r["test"]
-        ci = r["test_ci95"]
+        t, ci = r["test"], r["test_ci95"]
+        auc = f"{t['roc_auc']:.3f}" if "roc_auc" in t else ""
+        dev = f"{100 * r['dev_macro_f1']:.2f}" if "dev_macro_f1" in r else ""
         lines.append(f"| {r['system']} | {100 * t['macro_f1']:.2f} | {100 * ci[0]:.1f} to {100 * ci[1]:.1f} | "
-                     f"{100 * r['test_complete_contexts']['macro_f1']:.2f} | {100 * t['hallucinated_precision']:.1f} / {100 * t['hallucinated_recall']:.1f} | "
-                     f"{100 * r.get('dev_macro_f1', float('nan')):.2f} |")
+                     f"{100 * r['test_complete_contexts']['macro_f1']:.2f} | {100 * t['hallucinated_precision']:.1f} / "
+                     f"{100 * t['hallucinated_recall']:.1f} | {auc} | {dev} |")
     (out / "delucionqa.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     for r in clean[1:]:
