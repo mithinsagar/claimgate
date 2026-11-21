@@ -106,3 +106,28 @@ def test_api_key_is_enforced_when_set(gate, monkeypatch):
     assert client.post("/verify", json=body).status_code == 401
     assert client.post("/verify", json=body, headers={"X-API-Key": "s3cret"}).status_code == 200
     assert client.post("/verify", json={**body, "policy": "lenient"}).status_code in (401, 422)
+
+
+class StubVerifier:
+    """P(supported) high when the claim's words are in the premise; P(contradicted) high when it says 'never'."""
+
+    def score(self, pairs):
+        out = []
+        for p, h in pairs:
+            sup = len(set(content_words(h)) & set(content_words(p))) / max(1, len(set(content_words(h))))
+            con = 0.9 if "never" in h.lower() else 0.05
+            out.append([sup * (1 - con), 1 - sup, con])
+        return np.array(out, dtype=np.float32)
+
+
+def test_blend_model_uses_the_verifier_signal(gate):
+    from sklearn.isotonic import IsotonicRegression
+
+    from claimgate.decide import BlendModel
+    cal = IsotonicRegression(out_of_bounds="clip").fit([0.0, 0.5, 1.0], [0.0, 0.5, 1.0])
+    blend = BlendModel(gate.model, cal, weight=0.0)
+    with pytest.raises(ValueError):
+        ClaimGate(StubNLI(), blend, threshold=0.5)  # needs the verifier scorer
+    g = ClaimGate(StubNLI(), blend, threshold=0.5, band=0.05, scorers={"verifier": StubVerifier()})
+    rep = g.verify("Check the tire pressure once a month when the tires are cold. Rotate tires every 5,000 miles.", EVIDENCE)
+    assert [c.verdict for c in rep.claims] == ["SUPPORTED", "NOT_IN_EVIDENCE"]
