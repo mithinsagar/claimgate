@@ -11,6 +11,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from claimgate.data import ROOT, load_delucionqa  # noqa: E402
+from claimgate.decide import gated_risk  # noqa: E402
 from claimgate.features import sentence_features  # noqa: E402
 from claimgate.nli import NLI  # noqa: E402
 from claimgate.pipeline import MODEL_PATH  # noqa: E402
@@ -27,15 +28,18 @@ def main() -> None:
     nli = NLI(verbose=True)
     items = generate(load_delucionqa("dev") + load_delucionqa("test"))
     exs = [as_example(it, ex, i) for i, (it, ex) in enumerate(items)]
+    fdir = ROOT / "artifacts" / "features"
     df = sentence_features(exs, nli)
     raw = sentence_features(exs, nli, canonical=False)
+    df.assign(kind=[it.kind for it, _ in items]).to_parquet(fdir / "quantstress.parquet")
     kinds = np.array([it.kind for it, _ in items])
     qbad = (df.q_mismatch + df.q_unit_mismatch).to_numpy() > 0
     systems = {
         "NLI zero-shot, no unit canonicalisation": (1 - np.maximum(raw.e_win_max, raw.e_chunk_max).to_numpy()) >= thr["NLI zero-shot (DeBERTa-v3-large)"],
         "NLI zero-shot": (1 - np.maximum(df.e_win_max, df.e_chunk_max).to_numpy()) >= thr["NLI zero-shot (DeBERTa-v3-large)"],
         "NLI + quantity checks": qbad | ((1 - np.maximum(df.e_win_max, df.e_chunk_max).to_numpy()) >= thr["NLI zero-shot + quantity checks"]),
-        "ClaimGate": qbad | (gate["model"].predict_proba(df) >= gate["threshold"]),
+        "ClaimGate without contradiction gate": qbad | (gate["model"].predict_proba(df) >= gate["threshold"]),
+        "ClaimGate": qbad | (gated_risk(gate["model"], df) >= gate["threshold"]),
     }
     rows = []
     for name, flagged in systems.items():

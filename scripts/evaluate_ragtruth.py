@@ -17,7 +17,7 @@ from sklearn.metrics import precision_recall_fscore_support
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from claimgate.data import ROOT  # noqa: E402
-from claimgate.decide import answer_scores  # noqa: E402
+from claimgate.decide import answer_scores, gated_risk  # noqa: E402
 from claimgate.features import sentence_features  # noqa: E402
 from claimgate.metrics import bootstrap_macro_f1  # noqa: E402
 from claimgate.nli import NLI  # noqa: E402
@@ -48,8 +48,8 @@ def main() -> None:
             sentence_features(exs, nli).to_parquet(path)
         frames[name] = __import__("pandas").read_parquet(path)
     dev, test = frames["ragtruth_dev300"], frames["ragtruth_test"]
-    da = answer_scores(dev, gate["model"].predict_proba(dev))
-    ta = answer_scores(test, gate["model"].predict_proba(test))
+    da = answer_scores(dev, gated_risk(gate["model"], dev))
+    ta = answer_scores(test, gated_risk(gate["model"], test))
     y = ta.label.to_numpy()
     s = ta.score.to_numpy()
     from sklearn.metrics import roc_auc_score

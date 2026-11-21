@@ -76,12 +76,43 @@ def tune_threshold(labels: np.ndarray, scores: np.ndarray) -> tuple[float, float
     return best_t, best_f
 
 
+def logit(p) -> np.ndarray:
+    p = np.clip(np.asarray(p, dtype=float), 1e-4, 1 - 1e-4)
+    return np.log(p / (1 - p))
+
+
+def margin(scores, threshold: float) -> np.ndarray:
+    """Distance from the decision threshold in logit space (chosen over probability space on dev)."""
+    return np.abs(logit(scores) - logit(threshold))
+
+
+def review_band(scores: np.ndarray, threshold: float, review_share: float = 0.2) -> float:
+    """Logit margin below which an answer is sent to review, sized so `review_share` of the given answers are."""
+    return float(np.quantile(margin(scores, threshold), review_share))
+
+
 def abstention_curve(labels: np.ndarray, scores: np.ndarray, threshold: float, coverages=(1.0, 0.9, 0.8, 0.7, 0.6, 0.5)) -> list[dict]:
-    """Macro F1 when the system abstains on the answers whose calibrated risk is closest to the threshold."""
-    margin = np.abs(scores - threshold)
-    order = np.argsort(-margin)
+    """Accuracy and macro F1 on the answers the system still decides when it abstains on the closest calls."""
+    order = np.argsort(-margin(scores, threshold))
     out = []
     for cov in coverages:
         keep = order[: max(2, int(round(cov * len(scores))))]
-        out.append({"coverage": cov, "macro_f1": macro_f1(labels[keep], scores[keep] >= threshold), "n": int(len(keep))})
+        pred = scores[keep] >= threshold
+        out.append({"coverage": cov, "accuracy": float((pred == labels[keep]).mean()), "macro_f1": macro_f1(labels[keep], pred), "n": int(len(keep))})
     return out
+
+
+def contradiction_gate(df: pd.DataFrame) -> np.ndarray:
+    """Claims whose words are grounded in the evidence but whose meaning is contradicted.
+
+    Some evidence window contradicts the claim (p > 0.9), no window or chunk entails it (p < 0.1), and under 20% of its
+    content words are new. DelucionQA train has 17 contradicted sentences out of 4,433, so the learned model gives these
+    signals little weight and misses negation or condition flips, which keep the vocabulary intact. The gate is a fixed
+    rule; it changes no decision on DelucionQA dev.
+    """
+    emax = np.maximum(df.e_win_max.to_numpy(), df.e_chunk_max.to_numpy())
+    return (df.c_win_max.to_numpy() > 0.9) & (emax < 0.1) & (df.novel_frac.to_numpy() < 0.2)
+
+
+def gated_risk(model: SentenceModel, df: pd.DataFrame) -> np.ndarray:
+    return np.where(contradiction_gate(df), 1.0, model.predict_proba(df))

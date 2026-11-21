@@ -78,3 +78,10 @@ def test_api(gate, monkeypatch):
     assert r.status_code == 200 and r.json()["claims"][0]["verdict"] == "SUPPORTED"
     assert client.post("/verify", json={"answer": "", "evidence": EVIDENCE}).status_code == 422
     assert "ClaimGate" in client.get("/").text
+
+
+def test_contradiction_gate_needs_grounded_wording_and_no_entailment():
+    from claimgate.decide import contradiction_gate
+    df = pd.DataFrame({"c_win_max": [0.97, 0.97, 0.97, 0.5], "e_win_max": [0.01, 0.6, 0.01, 0.01], "e_chunk_max": [0.02, 0.0, 0.02, 0.02],
+                       "novel_frac": [0.0, 0.0, 0.5, 0.0]})
+    assert contradiction_gate(df).tolist() == [True, False, False, False]

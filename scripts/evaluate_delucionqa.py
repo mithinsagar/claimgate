@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from claimgate.baselines import sim_overlap_predict  # noqa: E402
 from claimgate.data import ROOT, load_delucionqa  # noqa: E402
-from claimgate.decide import SentenceModel, abstention_curve, answer_scores, tune_threshold  # noqa: E402
+from claimgate.decide import SentenceModel, abstention_curve, answer_scores, gated_risk, review_band, tune_threshold  # noqa: E402
 from claimgate.features import FEATURES  # noqa: E402
 from claimgate.metrics import (  # noqa: E402
     bootstrap_macro_f1,
@@ -26,7 +26,7 @@ from claimgate.metrics import (  # noqa: E402
     paired_bootstrap,
     report,
 )
-from claimgate.pipeline import LLM_MODEL_PATH, MODEL_PATH, ClaimGate  # noqa: E402
+from claimgate.pipeline import MODEL_PATH, ClaimGate  # noqa: E402
 
 PUBLISHED = {"Sim-overlap": 71.09, "Sim-hybrid": 70.81, "Sim-cosine": 69.45, "Keyword-match": 52.77}
 NLI_COLS = ["e_win_max", "c_at_best", "n_at_best", "c_win_max", "e_win_mean", "e_chunk_max", "c_chunk_max", "n_chunk_min"]
@@ -86,18 +86,23 @@ def main() -> None:
     results.append(evaluate("NLI zero-shot + quantity checks", dv, te, unsup_score(dv, True), unsup_score(te, True), complete))
     if has_llm:
         results.append(evaluate("LLM judge zero-shot (Qwen2.5-7B-Instruct, 4-bit)", dv, te, 1 - dv.llm_yes.to_numpy(), 1 - te.llm_yes.to_numpy(), complete))
-    systems = [("ClaimGate light (no LLM)", FEATURES, MODEL_PATH),
-               ("ClaimGate light without NLI", [f for f in FEATURES if f not in NLI_COLS], None),
-               ("ClaimGate light without quantity checks", [f for f in FEATURES if f not in Q_COLS], None)]
+    # The headline model was chosen by grouped 5-fold CV on train: adding the LLM judge as a feature did not raise
+    # answer-level AUC (0.8733 vs 0.8743) or F1, so it stays an ablation.
+    systems = [("ClaimGate", FEATURES, MODEL_PATH, True),
+               ("ClaimGate without contradiction gate", FEATURES, None, False),
+               ("ClaimGate without NLI", [f for f in FEATURES if f not in NLI_COLS], None, False),
+               ("ClaimGate without quantity checks", [f for f in FEATURES if f not in Q_COLS], None, True)]
     if has_llm:
-        systems.insert(0, ("ClaimGate (evidence features + LLM judge)", FEATURES + ["llm_yes"], LLM_MODEL_PATH))
-    for name, feats, path in systems:
+        systems.append(("ClaimGate + LLM judge as a feature", FEATURES + ["llm_yes"], None, True))
+    for name, feats, path, gate in systems:
         m = SentenceModel.fit(tr, feats)
-        r = evaluate(name, dv, te, m.predict_proba(dv), m.predict_proba(te), complete)
+        risk = (lambda d, m=m: gated_risk(m, d)) if gate else m.predict_proba
+        r = evaluate(name, dv, te, risk(dv), risk(te), complete)
         r["sentence_ece_test"] = expected_calibration_error(te.target, m.predict_proba(te))
         results.append(r)
         if path:
-            ClaimGate(None, m, r["threshold"]).save(path)
+            r["review_band_logit"] = review_band(answer_scores(dv, risk(dv)).score.to_numpy(), r["threshold"])
+            ClaimGate(None, m, r["threshold"], r["review_band_logit"]).save(path)
 
     ref = results[0]["_pred"]
     for r in results[1:]:

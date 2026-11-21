@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from claimgate.pipeline import LLM_MODEL_PATH, MODEL_PATH, ClaimGate
+from claimgate.pipeline import MODEL_PATH, ClaimGate
 
 STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="ClaimGate", version="0.1.0")
@@ -27,15 +27,12 @@ def gate() -> ClaimGate:
     from claimgate.nli import NLI
     model_dir = os.environ.get("CLAIMGATE_NLI")
     nli = NLI(model_dir) if model_dir else NLI()
-    if os.environ.get("CLAIMGATE_USE_LLM") == "1":
-        from claimgate.llm import LLMJudge
-        return ClaimGate.load(nli, LLM_MODEL_PATH, llm=LLMJudge())
     return ClaimGate.load(nli, Path(os.environ.get("CLAIMGATE_MODEL", MODEL_PATH)))
 
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "llm_judge": os.environ.get("CLAIMGATE_USE_LLM") == "1"}
+    return {"status": "ok"}
 
 
 @app.post("/verify")
