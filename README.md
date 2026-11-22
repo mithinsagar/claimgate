@@ -124,12 +124,15 @@ random RAGTruth train responses; nothing retrained.
 | ClaimGate, decision layer retrained on 100 RAGTruth responses | 47.1 | 71.9 | 56.9 (50.9 to 62.5) | 0.847 |
 | ClaimGate, decision layer retrained on 300 RAGTruth responses | 41.2 | 86.2 | 55.8 (50.4 to 61.0) | 0.856 |
 | ClaimGate, decision layer retrained on 600 RAGTruth responses | 42.6 | 87.5 | 57.3 (51.8 to 62.5) | 0.861 |
+| ClaimGate, decision layer retrained on all 4,734 RAGTruth train responses | 43.5 | 84.4 | 57.4 (51.9 to 62.6) | 0.865 |
 
 Out of domain HHEM is clearly better than ClaimGate trained on car-manual answers: the decision layer learned
 DelucionQA's convention (true but unstated advice counts as a hallucination) and carries it over. Retraining only that
 layer on RAGTruth responses (disjoint from the 300 used for thresholds; regularisation chosen on those 300) closes most
 of the gap, from 49.8 to 57.3 F1 and from 0.810 to 0.861 AUC, but does not pass HHEM on test. On the 300-response
 threshold set the retrained layer was ahead of HHEM (AUC 0.862 vs 0.854); on the 900 test responses it is behind.
+Training on every remaining train response (4,734, about 8 times as many) barely moves it: 57.4 F1 and 0.865 AUC. The
+curve has flattened, so the remaining gap comes from the features the layer sees, not from too little RAGTruth data.
 
 ### Abstaining on close calls
 
@@ -258,7 +261,8 @@ Open `http://localhost:8060/#example` to run the example above.
 * **Rebuilt contexts.** 24 of 671 test contexts still contain unrecovered words, and contexts RAGBench did not carry
   verbatim were re-cased by rule. Bosch's method reproduces within 0.05 points, but it is a rebuild.
 * **One labelling convention.** The decision layer learned DelucionQA's rule that true but unstated advice is a
-  hallucination. On RAGTruth, HHEM alone stays ahead even after retraining the decision layer on 600 RAGTruth answers.
+  hallucination. On RAGTruth, HHEM alone stays ahead even after retraining the decision layer on all 4,734 RAGTruth train
+  answers.
 * **Wide intervals.** With 671 test answers the 95% interval is about ±3.3 points. ClaimGate vs zero-shot NLI is only
   just significant (p = 0.049), and ClaimGate vs its verifier variant is a tie.
 * **Rule-based numbers.** On RAGTruth the checker's mismatch calls overlap human labels only about a third of the

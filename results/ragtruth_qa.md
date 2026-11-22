@@ -23,3 +23,4 @@
 | ClaimGate adapted on 100 RAGTruth responses, threshold from RAGTruth 300 | 47.1 | 71.9 | 56.9 (50.9 to 62.5) | 0.847 |
 | ClaimGate adapted on 300 RAGTruth responses, threshold from RAGTruth 300 | 41.2 | 86.2 | 55.8 (50.4 to 61.0) | 0.856 |
 | ClaimGate adapted on 600 RAGTruth responses, threshold from RAGTruth 300 | 42.6 | 87.5 | 57.3 (51.8 to 62.5) | 0.861 |
+| ClaimGate adapted on 4734 RAGTruth responses, threshold from RAGTruth 300 | 43.5 | 84.4 | 57.4 (51.9 to 62.6) | 0.865 |

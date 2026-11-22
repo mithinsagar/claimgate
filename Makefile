@@ -1,6 +1,6 @@
 PY ?= .venv/bin/python
 
-.PHONY: setup data models features verifier detectors evaluate stress ragtruth quantity-checker atomic figures demo-gif all serve test lint
+.PHONY: setup data models features verifier detectors evaluate stress ragtruth ragtruth-all quantity-checker atomic figures demo-gif all serve test lint
 
 setup:
 	python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && $(PY) -c "import nltk; [nltk.download(p, quiet=True, raise_on_error=True) for p in ('punkt', 'punkt_tab')]"
@@ -30,6 +30,11 @@ stress:
 	$(PY) scripts/quantstress.py
 
 ragtruth:
+	$(PY) scripts/evaluate_ragtruth.py
+
+ragtruth-all:  ## optional: features for every RAGTruth train response (about 2.5 h), then re-run the RAGTruth eval
+	$(PY) scripts/build_features.py --splits ragtruth_train_all
+	$(PY) scripts/score_detectors.py hhem --sets ragtruth_train_all
 	$(PY) scripts/evaluate_ragtruth.py
 
 quantity-checker:
