@@ -5,6 +5,7 @@ import hashlib
 import os
 import sqlite3
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -34,8 +35,10 @@ class NLI:
         self.order = [labels["entailment"], labels.get("neutral", labels.get("not_entailment")), labels.get("contradiction", labels.get("not_entailment"))]
         cache = cache or ROOT / "artifacts" / f"nli_cache_{self.model_dir.name}.sqlite"
         cache.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(cache)
+        # the service answers requests on a thread pool: one connection shared across threads, guarded by a lock
+        self.db = sqlite3.connect(cache, check_same_thread=False)
         self.db.execute("create table if not exists s (k text primary key, e real, n real, c real)")
+        self._lock = threading.Lock()
 
     @staticmethod
     def _key(p: str, h: str) -> str:
@@ -60,6 +63,10 @@ class NLI:
 
     def score(self, pairs: list[tuple[str, str]]) -> np.ndarray:
         """Rows of [P(entailment), P(neutral), P(contradiction)]."""
+        with self._lock:
+            return self._score(pairs)
+
+    def _score(self, pairs: list[tuple[str, str]]) -> np.ndarray:
         keys = [self._key(p, h) for p, h in pairs]
         found = {}
         for b in range(0, len(keys), 900):

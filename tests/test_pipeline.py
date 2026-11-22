@@ -131,3 +131,13 @@ def test_blend_model_uses_the_verifier_signal(gate):
     g = ClaimGate(StubNLI(), blend, threshold=0.5, band=0.05, scorers={"verifier": StubVerifier()})
     rep = g.verify("Check the tire pressure once a month when the tires are cold. Rotate tires every 5,000 miles.", EVIDENCE)
     assert [c.verdict for c in rep.claims] == ["SUPPORTED", "NOT_IN_EVIDENCE"]
+
+
+def test_api_serves_requests_from_several_threads(gate, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    monkeypatch.setattr(serve, "gate", lambda: gate)
+    client = TestClient(serve.app)
+    body = {"answer": "Do not drive the spare above 50 mph.", "evidence": EVIDENCE}
+    with ThreadPoolExecutor(4) as ex:
+        codes = list(ex.map(lambda _: client.post("/verify", json=body).status_code, range(8)))
+    assert codes == [200] * 8

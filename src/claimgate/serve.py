@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hmac
 import os
+import threading
 import time
 from functools import lru_cache
 from pathlib import Path
@@ -14,6 +15,7 @@ from pydantic import BaseModel, Field
 from claimgate.pipeline import FULL_MODEL_PATH, MODEL_PATH, ClaimGate
 
 STATIC = Path(__file__).parent / "static"
+_MODEL_LOCK = threading.Lock()  # one request at a time on the models (FastAPI runs sync endpoints on a thread pool)
 app = FastAPI(title="ClaimGate", version="0.1.0")
 
 
@@ -62,7 +64,8 @@ def verify(req: VerifyRequest, x_api_key: str | None = Header(default=None)) -> 
     check_key(x_api_key)
     t0 = time.perf_counter()
     try:
-        report = gate().verify(req.answer, req.evidence, req.question, req.policy)
+        with _MODEL_LOCK:
+            report = gate().verify(req.answer, req.evidence, req.question, req.policy)
     except FileNotFoundError as e:
         raise HTTPException(503, f"model files missing: {e}") from e
     out = report.to_dict()
