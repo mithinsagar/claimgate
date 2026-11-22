@@ -44,9 +44,11 @@ class StressItem:
 
 
 def _fmt(v: float) -> str:
+    """Three significant figures, never scientific notation (32 °F is "0" °C, 999.7 is "1,000")."""
     if abs(v) < 1e-6:
-        return "0"  # 32 °F is 0 °C, not 5.68e-14
-    return f"{v:.3g}" if abs(v) < 1000 else f"{v:,.0f}"
+        return "0"
+    x = float(f"{v:.3g}") if abs(v) < 1000 else round(v)
+    return f"{x:,.0f}" if abs(x) >= 1000 else f"{x:g}"
 
 
 def _quantity_edits(claim: str, evidence: str, rng: random.Random) -> list[tuple[str, str, int, str]]:
@@ -66,7 +68,10 @@ def _quantity_edits(claim: str, evidence: str, rng: random.Random) -> list[tuple
         new_unit, new_txt = SWAP[q.unit]
         out.append(("unit_swap", claim.replace(q.text, f"{num.group(0)} {new_txt}", 1), 1, f"{q.text} -> {num.group(0)} {new_txt}"))
         conv = quantities.UREG.Quantity(q.value, q.unit).to(new_unit).magnitude
-        out.append(("converted", claim.replace(q.text, f"{_fmt(conv)} {new_txt}", 1), 0, f"{q.text} -> {_fmt(conv)} {new_txt}"))
+        # "500 miles (805 km)": convert the whole phrase, so the edit reads naturally instead of "805 km (805 km)"
+        paren = re.match(r"\s*\([^)]*\)", claim[claim.index(q.text) + len(q.text):])
+        phrase = q.text + (paren.group(0) if paren else "")
+        out.append(("converted", claim.replace(phrase, f"{_fmt(conv)} {new_txt}", 1), 0, f"{phrase.strip()} -> {_fmt(conv)} {new_txt}"))
         break
     return out
 

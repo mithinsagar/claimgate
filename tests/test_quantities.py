@@ -96,3 +96,9 @@ def test_fraction_ranges_compound_units_and_or_clauses():
 def test_attached_lower_case_units_are_units_but_spaced_ones_are_words():
     assert [(q.value, q.unit) for q in extract("below 10f (12c) use a 12v supply")] == [(10.0, "degF"), (12.0, "degC"), (12.0, "volt")]
     assert [q.unit for q in extract("leave at 7 a.m. today")] == [None]
+
+
+def test_canonicalize_leaves_values_already_stated_in_the_same_unit():
+    from claimgate.quantities import canonicalize
+    new, _ = canonicalize("Service within 805 km (805 km).", "Service within 500 miles (805 km).")
+    assert new == "Service within 805 km (805 km)."

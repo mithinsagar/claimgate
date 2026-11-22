@@ -9,7 +9,8 @@ Decision rules:
     cannot be stacked reliably on train. The final model is chosen by dev macro F1 among three fixed candidates: the
     feature model, the verifier alone, and an equal-weight blend of the two calibrated risks (verifier calibrated on dev);
   * the contradiction gate stays if it catches more of the held-out-fold rule-made contradictions and costs at most
-    0.5 points of dev macro F1.
+    0.5 points of dev macro F1; the learned contradiction detector replaces the hand rule under the same test, with its
+    false-alarm target (3%, 2%, 1% or 0.5% of supported train sentences) picked as the one catching the most edits.
 A first full run stacked the pooled out-of-fold verifier scores; train analysis showed per-fold scale differences, so
 the verifier is now combined by calibration and blending instead (README, "How the final model was chosen").
 Writes results/delucionqa.{json,md}, the shipped zero-shot model (src/claimgate/assets) and the full model (models/).
@@ -147,9 +148,8 @@ def main() -> None:
 
     # learned contradiction detector vs the hand-written gate (train-derived edits and dev only)
     supported = tr[tr.target == 0]
-    contra = ContradictionModel.fit(supported, aug, supported.uid.to_numpy(), aug.source_uid.to_numpy())
-    sel["learned_gate_rule_made_caught_oof"] = contra.oof_catch
-    sel["learned_gate_features"] = contra.features
+    contras = {fpr: ContradictionModel.fit(supported, aug, supported.uid.to_numpy(), aug.source_uid.to_numpy(), target_fpr=fpr)
+               for fpr in (0.03, 0.02, 0.01, 0.005)}
     gate_model = None
 
     def risk(m, d, gate):
@@ -161,17 +161,24 @@ def main() -> None:
     sel["dev_macro_f1_without_gate"] = dev_f1(dv, risk(full, dv, False))
     use_gate = sel["rule_made_caught_with_gate"] > sel["rule_made_caught_without_gate"] and \
         sel["dev_macro_f1_with_gate"] >= sel["dev_macro_f1_without_gate"] - 0.005
-    # replace the hand rule by the learned detector if, combined with the risk model, it catches more held-out-fold edits
-    # and costs at most 0.5 points of dev macro F1 (all train-derived or dev)
-    sel["rule_made_caught_with_learned_gate"] = float(((r_aug >= t_cv) | contra.oof_edit_flags).mean())
-    gate_model = contra
-    sel["dev_macro_f1_with_learned_gate"] = dev_f1(dv, risk(full, dv, True))
+    # replace the hand rule by the learned detector: among false-alarm targets of 3%, 2%, 1% and 0.5% on supported train
+    # sentences, take the one that, combined with the risk model, catches the most held-out-fold edits while costing at
+    # most 0.5 points of dev macro F1 against the hand rule (train-derived edits and dev only; test untouched)
+    learned = {}
+    for fpr, c in contras.items():
+        gate_model = c
+        learned[fpr] = {"rule_made_caught": float(((r_aug >= t_cv) | c.oof_edit_flags).mean()), "dev_macro_f1": dev_f1(dv, risk(full, dv, True))}
     gate_model = None
-    use_learned = sel["rule_made_caught_with_learned_gate"] > sel["rule_made_caught_with_gate"] and \
-        sel["dev_macro_f1_with_learned_gate"] >= sel["dev_macro_f1_with_gate"] - 0.005
+    sel["learned_gate_by_target_fpr"] = learned
+    ok = [f for f, v in learned.items() if v["rule_made_caught"] > sel["rule_made_caught_with_gate"]
+          and v["dev_macro_f1"] >= sel["dev_macro_f1_with_gate"] - 0.005]
+    use_learned = bool(ok)
     sel["use_learned_gate"] = use_learned
     if use_learned:
-        gate_model, use_gate = contra, True
+        best = max(ok, key=lambda f: learned[f]["rule_made_caught"])
+        sel["learned_gate_target_fpr"] = best
+        sel["learned_gate_features"] = contras[best].features
+        gate_model, use_gate = contras[best], True
     sel.update({"use_gate": use_gate, "zero_shot_model_features": zero_shot_feats, "full_model_features": full_feats})
     print("design decisions:", {k: (round(v, 4) if isinstance(v, float) else v) for k, v in sel.items() if not isinstance(v, list)})
 

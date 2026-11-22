@@ -45,3 +45,9 @@ def test_ragtruth_sentence_offsets_match_text():
     parts = _sentences_with_offsets(text)
     assert [p[0] for p in parts] == ["Mechanics earn about $20 an hour.", "Pay varies by state!", "Some are paid per job."]
     assert all(text[s:e].strip() == t for t, s, e in parts)
+
+
+def test_converted_edit_replaces_a_dual_unit_phrase_whole():
+    edits = {k: c for k, c, _, _ in _quantity_edits("Service within 500 miles (805 km) of the warning.", "service within 500 miles ( 805 km ) .",
+                                                    random.Random(0))}
+    assert edits["converted"] == "Service within 805 km of the warning."

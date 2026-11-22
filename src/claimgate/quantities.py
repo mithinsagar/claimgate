@@ -235,8 +235,8 @@ def canonicalize(claim: str, evidence: str) -> tuple[str, list[str]]:
     out, notes = claim, []
     ev = [e for e in extract(evidence) if e.unit]
     for q in extract(claim):
-        if q.unit is None:
-            continue
+        if q.unit is None or any(e.unit == q.unit and _close(e.value, q.value) for e in ev):
+            continue  # stated in the evidence in the same unit already: nothing to rewrite
         dim = _dimensionality(q.unit)
         for e in ev:
             if _dimensionality(e.unit) != dim or e.unit == q.unit:

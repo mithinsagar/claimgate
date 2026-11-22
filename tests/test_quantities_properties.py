@@ -11,7 +11,8 @@ values = st.floats(min_value=0.5, max_value=5000, allow_nan=False, allow_infinit
 
 
 def fmt(v: float) -> str:
-    return f"{v:.3g}" if v < 1000 else f"{v:.0f}"
+    x = float(f"{v:.3g}") if v < 1000 else round(v)
+    return f"{x:.0f}" if x >= 1000 else f"{x:g}"
 
 
 @settings(max_examples=300, deadline=None)

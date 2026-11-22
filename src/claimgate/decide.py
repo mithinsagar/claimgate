@@ -28,8 +28,8 @@ def gbm(seed: int = 0) -> HistGradientBoostingClassifier:
                                           random_state=seed)
 
 
-def logreg(seed: int = 0):
-    return make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), LogisticRegression(C=0.5, max_iter=3000, random_state=seed))
+def logreg(seed: int = 0, C: float = 0.5):
+    return make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), LogisticRegression(C=C, max_iter=3000, random_state=seed))
 
 
 @dataclass
@@ -40,13 +40,13 @@ class SentenceModel:
 
     @classmethod
     def fit(cls, df: pd.DataFrame, features: list[str], seeds: int = 5, folds: int = 5, kind: str = "lr", groups=None,
-            calibrate_on=None) -> SentenceModel:
+            calibrate_on=None, C: float = 0.5) -> SentenceModel:
         """Fit on all rows; calibrate with isotonic regression on out-of-fold scores of the `calibrate_on` rows.
 
         `groups` keeps related rows in the same fold (an answer's sentences, and rule-made edits with their source answer);
         `calibrate_on` restricts calibration to real claims so that augmented rows do not distort the probabilities.
         """
-        make = logreg if kind == "lr" else gbm
+        make = (lambda seed: logreg(seed, C)) if kind == "lr" else gbm
         seeds = 1 if kind == "lr" else seeds
         X, y = df[features].to_numpy(), df["target"].to_numpy()
         groups = df["uid"].to_numpy() if groups is None else np.asarray(groups)

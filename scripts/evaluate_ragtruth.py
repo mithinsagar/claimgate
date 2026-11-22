@@ -58,7 +58,7 @@ def main() -> None:
     dev, test = frames["ragtruth_dev300"], frames["ragtruth_test"]
     y_test = answer_scores(test, np.zeros(len(test))).label.to_numpy()
 
-    systems = {}
+    systems, results_extra = {}, {}
 
     def zs(d):
         return 1 - np.maximum(d.e_win_max, d.e_chunk_max).to_numpy()
@@ -92,9 +92,18 @@ def main() -> None:
         rt_train = load_scores("ragtruth_train600", pd.read_parquet(adapt_path))
         if all(c in rt_train and rt_train[c].notna().all() for c in feats):
             uids = list(dict.fromkeys(rt_train.uid))
+            # regularisation chosen on the 300 threshold responses (answer AUC), never on test
+            dev_auc = {}
+            for C in (0.5, 0.05):
+                m = SentenceModel.fit(rt_train, feats, C=C)
+                a = answer_scores(dev, m.predict_proba(dev))
+                dev_auc[C] = float(roc_auc_score(a.label, a.score))
+            best_C = max(dev_auc, key=dev_auc.get)
+            results_extra["adaptation_regularisation_dev_auc"] = dev_auc
+            results_extra["adaptation_C"] = best_C
             for n in (100, 300, 600):
                 part = rt_train[rt_train.uid.isin(uids[:n])]
-                m = SentenceModel.fit(part, feats)
+                m = SentenceModel.fit(part, feats, C=best_C)
 
                 def adapted(d, m=m, g=g):
                     r = m.predict_proba(d)
@@ -103,7 +112,7 @@ def main() -> None:
                     return np.where((d.q_mismatch + d.q_unit_mismatch).to_numpy() > 0, 1.0, r)
                 systems[f"ClaimGate adapted on {n} RAGTruth responses"] = (adapted(dev), adapted(test), None)
 
-    results = {"n_test": int(len(y_test)), "hallucinated": int(y_test.sum()), "systems": {}}
+    results = {"n_test": int(len(y_test)), "hallucinated": int(y_test.sum()), "systems": {}, **results_extra}
     for name, (r_dev, r_test, dqa_thr) in systems.items():
         da, ta = answer_scores(dev, r_dev), answer_scores(test, r_test)
         s = ta.score.to_numpy()
