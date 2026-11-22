@@ -1,6 +1,6 @@
 PY ?= .venv/bin/python
 
-.PHONY: setup data models features verifier detectors evaluate stress ragtruth quantity-checker atomic figures all serve test lint
+.PHONY: setup data models features verifier detectors evaluate stress ragtruth quantity-checker atomic figures demo-gif all serve test lint
 
 setup:
 	python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && $(PY) -c "import nltk; [nltk.download(p, quiet=True, raise_on_error=True) for p in ('punkt', 'punkt_tab')]"
@@ -40,6 +40,9 @@ atomic:      ## needs mlx, mlx-lm and the Qwen2.5-7B weights (scripts/fetch_mode
 
 figures:
 	$(PY) scripts/make_figures.py
+
+demo-gif:    ## needs `make serve` running and `pip install playwright` (uses the installed Chrome)
+	$(PY) scripts/make_demo_gif.py
 
 all: features verifier detectors evaluate stress ragtruth quantity-checker figures
 

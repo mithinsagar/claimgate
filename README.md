@@ -10,6 +10,8 @@ against, and claims too close to call go to a person.
 It is evaluated on **DelucionQA** (Sadat et al., EMNLP 2023 Findings): answers from a retrieval-augmented assistant for
 a car owner's manual, labelled sentence by sentence by people.
 
+![ClaimGate demo: an answer checked claim by claim](docs/figures/demo.gif)
+
 ## Results
 
 ### DelucionQA test set (671 answers)
