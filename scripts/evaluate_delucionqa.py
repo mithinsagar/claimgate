@@ -32,6 +32,7 @@ from claimgate.baselines import sim_overlap_predict  # noqa: E402
 from claimgate.data import ROOT, load_delucionqa  # noqa: E402
 from claimgate.decide import (  # noqa: E402
     BlendModel,
+    ContradictionModel,
     SentenceModel,
     abstention_curve,
     answer_scores,
@@ -144,15 +145,33 @@ def main() -> None:
     def fit(feats):
         return SentenceModel.fit(fit_df, feats, groups=fit_groups, calibrate_on=fit_mask)
 
+    # learned contradiction detector vs the hand-written gate (train-derived edits and dev only)
+    supported = tr[tr.target == 0]
+    contra = ContradictionModel.fit(supported, aug, supported.uid.to_numpy(), aug.source_uid.to_numpy())
+    sel["learned_gate_rule_made_caught_oof"] = contra.oof_catch
+    sel["learned_gate_features"] = contra.features
+    gate_model = None
+
     def risk(m, d, gate):
         r = m.predict_proba(d)
-        return np.where(contradiction_gate(d), 1.0, r) if gate else r
+        return np.where(contradiction_gate(d, gate_model), 1.0, r) if gate else r
 
     full = fit(full_feats)
     sel["dev_macro_f1_with_gate"] = dev_f1(dv, risk(full, dv, True))
     sel["dev_macro_f1_without_gate"] = dev_f1(dv, risk(full, dv, False))
     use_gate = sel["rule_made_caught_with_gate"] > sel["rule_made_caught_without_gate"] and \
         sel["dev_macro_f1_with_gate"] >= sel["dev_macro_f1_without_gate"] - 0.005
+    # replace the hand rule by the learned detector if, combined with the risk model, it catches more held-out-fold edits
+    # and costs at most 0.5 points of dev macro F1 (all train-derived or dev)
+    sel["rule_made_caught_with_learned_gate"] = float(((r_aug >= t_cv) | contra.oof_edit_flags).mean())
+    gate_model = contra
+    sel["dev_macro_f1_with_learned_gate"] = dev_f1(dv, risk(full, dv, True))
+    gate_model = None
+    use_learned = sel["rule_made_caught_with_learned_gate"] > sel["rule_made_caught_with_gate"] and \
+        sel["dev_macro_f1_with_learned_gate"] >= sel["dev_macro_f1_with_gate"] - 0.005
+    sel["use_learned_gate"] = use_learned
+    if use_learned:
+        gate_model, use_gate = contra, True
     sel.update({"use_gate": use_gate, "zero_shot_model_features": zero_shot_feats, "full_model_features": full_feats})
     print("design decisions:", {k: (round(v, 4) if isinstance(v, float) else v) for k, v in sel.items() if not isinstance(v, list)})
 
@@ -194,7 +213,7 @@ def main() -> None:
         r["review_band_logit"] = review_band(answer_scores(dv, risk(m, dv, use_gate)).score.to_numpy(), r["threshold"])
         r["features"] = feats
         results.append(r)
-        ClaimGate(None, m, r["threshold"], r["review_band_logit"]).save(path)
+        ClaimGate(None, m, r["threshold"], r["review_band_logit"], contra=gate_model).save(path)
     if "ft_sup" in signals:
         for cname, cm in candidates.items():
             if cname == final_name:
@@ -203,7 +222,7 @@ def main() -> None:
             r["review_band_logit"] = review_band(answer_scores(dv, risk(cm, dv, use_gate)).score.to_numpy(), r["threshold"])
             results.append(r)
             if cname == "verifier alone":
-                ClaimGate(None, cm, r["threshold"], r["review_band_logit"]).save(VERIFIER_MODEL_PATH)
+                ClaimGate(None, cm, r["threshold"], r["review_band_logit"], contra=gate_model).save(VERIFIER_MODEL_PATH)
     for name, feats, gate in (("without contradiction gate", full_feats, not use_gate),
                               ("without NLI features", [f for f in full_feats if f not in NLI_COLS], use_gate),
                               ("without quantity features", [f for f in full_feats if f not in Q_COLS], use_gate),

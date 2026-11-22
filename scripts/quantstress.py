@@ -45,7 +45,6 @@ def main() -> None:
         raw.to_parquet(raw_path)
     df = load_scores("quantstress", df)
     qbad = (df.q_mismatch + df.q_unit_mismatch).to_numpy() > 0
-    gate = contradiction_gate(df) if use_gate else np.zeros(len(df), bool)
 
     def zs(d):
         return 1 - np.maximum(d.e_win_max, d.e_chunk_max).to_numpy()
@@ -60,7 +59,8 @@ def main() -> None:
             continue
         g = joblib.load(path)
         if all(c in df and df[c].notna().all() for c in g["model"].features):
-            systems[name] = qbad | gate | (g["model"].predict_proba(df) >= g["threshold"])
+            gate_g = contradiction_gate(df, g.get("contra")) if use_gate else np.zeros(len(df), bool)
+            systems[name] = qbad | gate_g | (g["model"].predict_proba(df) >= g["threshold"])
     rows = [{"system": name, **{k: float(flagged[kinds == k].mean()) for k in KINDS}} for name, flagged in systems.items()]
     table = pd.DataFrame(rows).set_index("system")
     counts = {k: int((kinds == k).sum()) for k in KINDS}

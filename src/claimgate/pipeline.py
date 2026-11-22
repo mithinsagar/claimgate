@@ -64,25 +64,26 @@ class Report:
 
 
 class ClaimGate:
-    def __init__(self, nli, model: SentenceModel, threshold: float, band: float = 0.5, scorers: dict | None = None):
-        self.nli, self.model, self.threshold, self.band = nli, model, threshold, band
+    def __init__(self, nli, model: SentenceModel, threshold: float, band: float = 0.5, scorers: dict | None = None, contra=None):
+        self.nli, self.model, self.threshold, self.band, self.contra = nli, model, threshold, band, contra
         self.scorers = scorers or {}
-        needed = {SIGNAL_COLUMNS[c] for c in model.features if c in SIGNAL_COLUMNS}
+        needed = self.needed_signals
         if nli is not None and needed - set(self.scorers):
             raise ValueError(f"this model needs the signals {sorted(needed)}; pass scorers for {sorted(needed - set(self.scorers))}")
 
     @property
     def needed_signals(self) -> set[str]:
-        return {SIGNAL_COLUMNS[c] for c in self.model.features if c in SIGNAL_COLUMNS}
+        feats = list(self.model.features) + (list(self.contra.features) if self.contra is not None else [])
+        return {SIGNAL_COLUMNS[c] for c in feats if c in SIGNAL_COLUMNS}
 
     @classmethod
     def load(cls, nli, path: Path | None = None, scorers: dict | None = None) -> ClaimGate:
         d = joblib.load(path or MODEL_PATH)
-        return cls(nli, d["model"], d["threshold"], d.get("band", 0.5), scorers)
+        return cls(nli, d["model"], d["threshold"], d.get("band", 0.5), scorers, d.get("contra"))
 
     def save(self, path: Path = MODEL_PATH) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump({"model": self.model, "threshold": self.threshold, "band": self.band}, path)
+        joblib.dump({"model": self.model, "threshold": self.threshold, "band": self.band, "contra": self.contra}, path)
 
     def verify(self, answer: str, evidence: str, question: str = "", policy: str = "strict") -> Report:
         if policy not in POLICIES:
@@ -93,7 +94,7 @@ class ClaimGate:
         df = sentence_features([ex], self.nli)
         df = add_signals(df, [ex], self.scorers, self.needed_signals)
         risk = self.model.predict_proba(df)
-        gate = contradiction_gate(df)
+        gate = contradiction_gate(df, self.contra)
         out = []
         for j, claim in enumerate(claims):
             row = df.iloc[j]
@@ -105,8 +106,12 @@ class ClaimGate:
                 verdict, r = "CONTRADICTED", max(r, 0.99)
             elif gate[j]:
                 verdict, r = "CONTRADICTED", max(r, 0.99)
-                proof.append(f"an evidence window contradicts the claim (p={row.c_win_max:.2f}) and none entails it "
-                             f"(p={max(row.e_win_max, row.e_chunk_max):.2f}) although its wording comes from the evidence")
+                if self.contra is not None:
+                    proof.append(f"contradiction detector p={float(self.contra.proba(df.iloc[[j]])[0]):.2f}: an evidence window contradicts the "
+                                 f"claim (p={row.c_win_max:.2f}) and none entails it (p={max(row.e_win_max, row.e_chunk_max):.2f})")
+                else:
+                    proof.append(f"an evidence window contradicts the claim (p={row.c_win_max:.2f}) and none entails it "
+                                 f"(p={max(row.e_win_max, row.e_chunk_max):.2f}) although its wording comes from the evidence")
             elif r >= self.threshold:
                 contradicted = row.c_at_best > max(0.5, row.e_win_max) or row.get("ft_con", 0.0) > 0.5
                 verdict = "CONTRADICTED" if contradicted else "NOT_IN_EVIDENCE"
