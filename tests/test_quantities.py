@@ -91,3 +91,8 @@ def test_fraction_ranges_compound_units_and_or_clauses():
     assert [q.unit for q in extract("Density: 1738 kg/m³.")] == [None]
     ev = "Low setting would probably be 6-8 hours."
     assert statuses("Cook on high for 4 hours or on low for 6-8 hours.", ev) == ["absent", "supported"]
+
+
+def test_attached_lower_case_units_are_units_but_spaced_ones_are_words():
+    assert [(q.value, q.unit) for q in extract("below 10f (12c) use a 12v supply")] == [(10.0, "degF"), (12.0, "degC"), (12.0, "volt")]
+    assert [q.unit for q in extract("leave at 7 a.m. today")] == [None]

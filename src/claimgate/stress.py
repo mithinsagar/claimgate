@@ -44,6 +44,8 @@ class StressItem:
 
 
 def _fmt(v: float) -> str:
+    if abs(v) < 1e-6:
+        return "0"  # 32 °F is 0 °C, not 5.68e-14
     return f"{v:.3g}" if abs(v) < 1000 else f"{v:,.0f}"
 
 
@@ -51,8 +53,9 @@ def _quantity_edits(claim: str, evidence: str, rng: random.Random) -> list[tuple
     out = []
     for v in quantities.check(claim, evidence):
         q = v.quantity
-        if v.status != "supported" or q.unit is None or q.unit not in SWAP or q.high is not None or q.text not in claim:
-            continue
+        if v.status != "supported" or not v.proof.startswith(f"'{q.text}' matches evidence") or q.unit is None or q.unit not in SWAP \
+                or q.high is not None or q.text not in claim:
+            continue  # only quantities the evidence states with a unit, so a correct conversion stays verifiable
         num = re.match(r"[\d.,/]+", q.text)
         if not num:
             continue

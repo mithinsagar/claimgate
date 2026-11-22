@@ -106,8 +106,8 @@ def extract(text: str) -> list[Quantity]:
     out = []
     for m in QTY_RE.finditer(text):
         num, high, unit = m.group(1), m.group(2), m.group(3)
-        if unit and unit in _LOWER_NOT_UNITS:
-            unit = None  # "7 a.m.", "2 a day": amps, Celsius, Fahrenheit, volts and watts are written A, C, F, V, W
+        if unit and unit in _LOWER_NOT_UNITS and re.search(r"\s", text[m.end(2) if high else m.end(1):m.start(3)]):
+            unit = None  # "7 a.m.", "2 a day": a lower-case a, c, f, v or w after a space is a word; attached ("10f", "12v") it is a unit
         u = UNIT_ALIASES.get(unit.lower()) if unit else None
         span_text = m.group(0) if unit else (m.group(1) + (f"-{high}" if high else ""))
         out.append(Quantity(_to_float(num), _to_float(high) if high else None, u, span_text.strip(), _local_context(text, m.start(), m.end())))
