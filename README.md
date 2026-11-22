@@ -139,10 +139,10 @@ to 83.4% at 80% coverage and 89.1% at 60%. The service marks these answers `REVI
 
 ### Speed
 
-0.50 s median per answer (about 150 ms per claim) and 1.4 s at the 90th percentile on an Apple M5 on mains power,
-measured on 60 real test answers with an empty NLI cache. Long-evidence NLI runs only for claims that no short evidence
-window already entails, which halved the median. The committed `results/latency.json` was re-run later in macOS Low
-Power Mode on battery, with other apps using the GPU: 1.1 s median, 3.8 s at the 90th percentile.
+0.51 s median per answer (about 150 ms per claim) and 1.4 s at the 90th percentile on an Apple M5 on mains power,
+measured on 60 real test answers with an empty NLI cache (`results/latency.json`). Long-evidence NLI runs only for
+claims that no short evidence window already entails, which halved the median. In macOS Low Power Mode on battery the
+same run took 1.1 s median.
 
 ## What goes in and what comes out
 
