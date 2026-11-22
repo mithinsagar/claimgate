@@ -26,37 +26,185 @@
    68.2
   ]
  },
- "claimgate": {
-  "n_test": 900,
-  "hallucinated": 160,
-  "roc_auc": 0.7675506756756757,
-  "threshold from DelucionQA dev": {
-   "threshold": 0.3,
-   "precision": 0.277882797731569,
-   "recall": 0.91875,
-   "f1": 0.42670537010159654,
-   "f1_ci95": [
-    0.37930770853105555,
-    0.4730916091449547
-   ],
-   "macro_f1_ci95": [
-    0.5029842906830692,
-    0.5677978300097956
-   ]
+ "n_test": 900,
+ "hallucinated": 160,
+ "systems": {
+  "NLI zero-shot (DeBERTa-v3-large)": {
+   "roc_auc": 0.7566976351351351,
+   "threshold from RAGTruth 300": {
+    "threshold": 0.5258,
+    "precision": 0.31746031746031744,
+    "recall": 0.75,
+    "f1": 0.44609665427509293,
+    "f1_ci95": [
+     0.39105935229134287,
+     0.49740932642487046
+    ]
+   }
   },
-  "threshold from 300 RAGTruth train responses": {
-   "threshold": 0.3514,
-   "precision": 0.3123543123543124,
-   "recall": 0.8375,
-   "f1": 0.45500848896434637,
-   "f1_ci95": [
-    0.4041037798481864,
-    0.5048247221844003
-   ],
-   "macro_f1_ci95": [
-    0.56149625380662,
-    0.6280405779414476
-   ]
+  "HHEM-2.1-Open zero-shot": {
+   "roc_auc": 0.8699155405405405,
+   "threshold from RAGTruth 300": {
+    "threshold": 0.8023999929428101,
+    "precision": 0.5109170305676856,
+    "recall": 0.73125,
+    "f1": 0.6015424164524421,
+    "f1_ci95": [
+     0.5408163265306123,
+     0.66
+    ]
+   }
+  },
+  "MiniCheck-Flan-T5-Large zero-shot": {
+   "roc_auc": 0.780147804054054,
+   "threshold from RAGTruth 300": {
+    "threshold": 0.8169999718666077,
+    "precision": 0.3306878306878307,
+    "recall": 0.78125,
+    "f1": 0.4646840148698885,
+    "f1_ci95": [
+     0.41085010936035354,
+     0.5163517820248791
+    ]
+   }
+  },
+  "ClaimGate": {
+   "roc_auc": 0.8099619932432433,
+   "threshold from RAGTruth 300": {
+    "threshold": 0.5516,
+    "precision": 0.3729903536977492,
+    "recall": 0.725,
+    "f1": 0.49256900212314225,
+    "f1_ci95": [
+     0.4349879146391884,
+     0.5480603250088675
+    ]
+   },
+   "threshold from DelucionQA dev": {
+    "threshold": 0.2736,
+    "precision": 0.32798165137614677,
+    "recall": 0.89375,
+    "f1": 0.4798657718120805,
+    "f1_ci95": [
+     0.4290777074284032,
+     0.529313365559971
+    ]
+   }
+  },
+  "ClaimGate without quantity override": {
+   "roc_auc": 0.8113133445945946,
+   "threshold from RAGTruth 300": {
+    "threshold": 0.5516,
+    "precision": 0.37540453074433655,
+    "recall": 0.725,
+    "f1": 0.4946695095948827,
+    "f1_ci95": [
+     0.4370823638207744,
+     0.5504231047257613
+    ]
+   },
+   "threshold from DelucionQA dev": {
+    "threshold": 0.2736,
+    "precision": 0.32798165137614677,
+    "recall": 0.89375,
+    "f1": 0.4798657718120805,
+    "f1_ci95": [
+     0.4290777074284032,
+     0.529313365559971
+    ]
+   }
+  },
+  "ClaimGate, no fine-tuned network": {
+   "roc_auc": 0.8099619932432433,
+   "threshold from RAGTruth 300": {
+    "threshold": 0.5516,
+    "precision": 0.3729903536977492,
+    "recall": 0.725,
+    "f1": 0.49256900212314225,
+    "f1_ci95": [
+     0.4349879146391884,
+     0.5480603250088675
+    ]
+   },
+   "threshold from DelucionQA dev": {
+    "threshold": 0.2736,
+    "precision": 0.32798165137614677,
+    "recall": 0.89375,
+    "f1": 0.4798657718120805,
+    "f1_ci95": [
+     0.4290777074284032,
+     0.529313365559971
+    ]
+   }
+  },
+  "ClaimGate, no fine-tuned network without quantity override": {
+   "roc_auc": 0.8113133445945946,
+   "threshold from RAGTruth 300": {
+    "threshold": 0.5516,
+    "precision": 0.37540453074433655,
+    "recall": 0.725,
+    "f1": 0.4946695095948827,
+    "f1_ci95": [
+     0.4370823638207744,
+     0.5504231047257613
+    ]
+   },
+   "threshold from DelucionQA dev": {
+    "threshold": 0.2736,
+    "precision": 0.32798165137614677,
+    "recall": 0.89375,
+    "f1": 0.4798657718120805,
+    "f1_ci95": [
+     0.4290777074284032,
+     0.529313365559971
+    ]
+   }
+  },
+  "ClaimGate variant: fine-tuned verifier": {
+   "roc_auc": 0.7904265202702703,
+   "threshold from RAGTruth 300": {
+    "threshold": 0.4348,
+    "precision": 0.30385487528344673,
+    "recall": 0.8375,
+    "f1": 0.4459234608985025,
+    "f1_ci95": [
+     0.39600581804375257,
+     0.4960511729299813
+    ]
+   },
+   "threshold from DelucionQA dev": {
+    "threshold": 0.3824,
+    "precision": 0.29116465863453816,
+    "recall": 0.90625,
+    "f1": 0.44072948328267475,
+    "f1_ci95": [
+     0.3931246838914652,
+     0.488443801696387
+    ]
+   }
+  },
+  "ClaimGate variant: fine-tuned verifier without quantity override": {
+   "roc_auc": 0.791081081081081,
+   "threshold from RAGTruth 300": {
+    "threshold": 0.4348,
+    "precision": 0.30385487528344673,
+    "recall": 0.8375,
+    "f1": 0.4459234608985025,
+    "f1_ci95": [
+     0.39600581804375257,
+     0.4960511729299813
+    ]
+   },
+   "threshold from DelucionQA dev": {
+    "threshold": 0.3824,
+    "precision": 0.29116465863453816,
+    "recall": 0.90625,
+    "f1": 0.44072948328267475,
+    "f1_ci95": [
+     0.3931246838914652,
+     0.488443801696387
+    ]
+   }
   }
  }
 }

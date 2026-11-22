@@ -1,0 +1,537 @@
+{
+ "by_task": {
+  "QA": {
+   "flagged_sentences": 83,
+   "precision": 0.3373493975903614,
+   "numeric_hallucination_spans": 1290,
+   "recall": 0.017829457364341085
+  },
+  "Summary": {
+   "flagged_sentences": 78,
+   "precision": 0.28205128205128205,
+   "numeric_hallucination_spans": 456,
+   "recall": 0.03289473684210526
+  },
+  "Data2txt": {
+   "flagged_sentences": 1,
+   "precision": 1.0,
+   "numeric_hallucination_spans": 1227,
+   "recall": 0.0
+  }
+ },
+ "by_context_overlap": {
+  "train": {
+   "1": {
+    "flagged": 140,
+    "precision": 0.32142857142857145
+   },
+   "2": {
+    "flagged": 71,
+    "precision": 0.2535211267605634
+   },
+   "3": {
+    "flagged": 13,
+    "precision": 0.3076923076923077
+   }
+  },
+  "test": {
+   "1": {
+    "flagged": 22,
+    "precision": 0.2727272727272727
+   },
+   "2": {
+    "flagged": 15,
+    "precision": 0.13333333333333333
+   },
+   "3": {
+    "flagged": 4,
+    "precision": 0.25
+   }
+  }
+ },
+ "sample": [
+  {
+   "task": "Summary",
+   "sentence": "* Louis Jordan, a 35-year-old sailor from South Carolina, was stranded at sea for five days after his boat capsized during a voyage in the Gulf Stream.",
+   "human_span": true,
+   "proof": [
+    "claim '35-year' but evidence says '23-year' (52% difference)",
+    "claim 'five days' but evidence says '22-hour', which is 0.917 day (445% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Examples include Louis Jordan, who was rescued after his sailboat capsized and he was adrift for 20 days, and Jose Salvador Alvarenga, who survived a 13-month ordeal at sea after his fishing boat was blown off course.",
+   "human_span": true,
+   "proof": [
+    "claim '20 days' but evidence says '14 months', which is 426 days (95% difference)",
+    "claim '13-month' but evidence says '12 days', which is 0.394 -month (3197% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Another man, Jose Salvador Alvarenga, was stranded at sea for 438 days after his fishing boat was blown off course and he was unable to communicate with anyone.",
+   "human_span": true,
+   "proof": [
+    "claim '438 days' but evidence says '22-hour', which is 0.917 days (47682% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Mary Kay Letourneau Fualaau, the 53-year-old woman who served jail time for having an affair with her 13-year-old student, is sharing her story of love and redemption on \"20/20.\" With her husband, Vili Fualaau, by her side, she will discuss how they have managed to make their marriage work despite their age difference.",
+   "human_span": true,
+   "proof": [
+    "claim '53-year' but evidence says '34-year' (56% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Katie, a 7-foot-tall giraffe at the Dallas Zoo, gave birth to a 6-foot-tall calf in an hour-long live broadcast on Animal Planet.",
+   "human_span": true,
+   "proof": [
+    "claim '7-foot' but evidence says '6 feet' (17% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "A 41-year-old mother, Nyia Parler, has been taken into custody in Maryland after police discovered her quadriplegic son lying in the woods near Philadelphia, where he had been left for days.",
+   "human_span": false,
+   "proof": [
+    "claim '41-year' but evidence says '21-year' (95% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "A 41-year-old woman, Nyia Parler, was taken into custody on Sunday for allegedly leaving her 21-year-old quadriplegic son in the woods for days while she visited her boyfriend in Maryland.",
+   "human_span": false,
+   "proof": [
+    "claim '41-year' but evidence says '21-year' (95% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "A 41-year-old mother, Nyia Parler, has been arrested and charged with attempted murder after her quadriplegic son was found abandoned in a Philadelphia park.",
+   "human_span": false,
+   "proof": [
+    "claim '41-year' but evidence says '21-year' (95% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Lane, a student at East Central University, was shot in the back while jogging by then 16-year-old Luna.",
+   "human_span": false,
+   "proof": [
+    "claim '16-year' but evidence says '23-year' (30% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "A 16-year-old boy has been found guilty of first-degree murder for a drive-by shooting of a college student in Oklahoma.",
+   "human_span": false,
+   "proof": [
+    "claim '16-year' but evidence says '23-year' (30% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Heather Mack, a 19 year old American teenager, has been sentenced to 10 years in prison, while her 21 year old boyfriend, Tommy Schaefer, has been sentenced to 18 years.",
+   "human_span": false,
+   "proof": [
+    "claim '19 year' but evidence says '21-year' (10% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Campbell Sr. described his daughter as \"extremely smart, hardworking, and beautiful.\" Other victims included Martin Richard, 8, and Lingzi Lu, a 23-year-old Chinese graduate student.",
+   "human_span": false,
+   "proof": [
+    "claim '23-year' but evidence says '29-year' (21% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Steve Woolfenden, a survivor, testified about the moment of the explosion and finding his 3-year-old son bleeding from the head.",
+   "human_span": false,
+   "proof": [
+    "claim '3-year' but evidence says '21-year' (86% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Steve Woolfenden, a biomedical researcher, described how he and his 3-year-old son, Leo, were injured in the bombing.",
+   "human_span": false,
+   "proof": [
+    "claim '3-year' but evidence says '21-year' (86% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "A 37-year-old man named Louis Jordan survived 66 days at sea after his boat capsized during a storm, breaking his mast and his shoulder.",
+   "human_span": false,
+   "proof": [
+    "claim '37-year' but evidence says '47-year' (21% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Louis Jordan, a 37-year-old man from Conway, South Carolina, was found alive after spending 66 days lost at sea.",
+   "human_span": false,
+   "proof": [
+    "claim '37-year' but evidence says '47-year' (21% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Louis Jordan, a 37-year-old man from South Carolina, was rescued after spending 66 days lost at sea.",
+   "human_span": false,
+   "proof": [
+    "claim '37-year' but evidence says '47-year' (21% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Manning, who identifies as female and was previously known as Bradley Manning, has been in prison for the past seven years and was sentenced to 35 years for stealing and leaking classified documents to WikiLeaks.",
+   "human_span": true,
+   "proof": [
+    "claim 'seven years' but evidence says '35-year' (80% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "PG&E has already paid over $500m in claims to victims' families, replaced over 800 miles of pipe, and installed new gas leak technology.",
+   "human_span": false,
+   "proof": [
+    "claim '500m' but evidence says '800 miles', which is 1.29e+06 m (100% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Liana Barrientos, a 39-year-old woman from New York, is facing charges for marrying 10 different men, with nine of the marriages happening between 1999 and 2002.",
+   "human_span": false,
+   "proof": [
+    "claim '39-year' but evidence says '23 years' (70% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Oklahoma reserve deputy Robert Bates, who fatally shot a man he meant to subdue with a Taser, has released training documents that show he had one Taser training class and three firearms training classes over a six-year period.",
+   "human_span": false,
+   "proof": [
+    "claim 'six-year' but evidence says 'half-year' (1100% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "TV season finales this week include: \"The Americans\" praised as one of the best series on TV, \"Fresh Off the Boat\" the first sitcom with an Asian-American cast since the 90s, \"Vikings\" the first History Channel scripted series, \"Scorpion\" a based-on-a-true-story show about a group of geniuses, \"Broadchurch\" a British mystery series starring David Tennant, and the Academy of Country Music Awards hosted by Luke Bryan and Blake Shelton with Christina Aguilera set to perform.",
+   "human_span": false,
+   "proof": [
+    "claim '90s' but evidence says '1990s' (95% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Israeli Prime Minister Benjamin Netanyahu has been granted an additional two weeks to form a government by President Reuven Rivlin.",
+   "human_span": false,
+   "proof": [
+    "claim 'two weeks' but evidence says '42 days', which is 6 week (67% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Israeli Prime Minister Benjamin Netanyahu has been granted an additional two weeks to form a government, according to Israel's President.",
+   "human_span": false,
+   "proof": [
+    "claim 'two weeks' but evidence says '42 days', which is 6 week (67% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Israeli Prime Minister Benjamin Netanyahu has been granted an extension of two weeks to form a government after requesting more time to ensure stability and address key issues.",
+   "human_span": false,
+   "proof": [
+    "claim 'two weeks' but evidence says '42 days', which is 6 week (67% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "He must form the government within 49 days, according to Israeli law.",
+   "human_span": true,
+   "proof": [
+    "claim '49 days' but evidence says '42 days' (17% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Israeli Prime Minister Benjamin Netanyahu has been granted an additional two weeks to form a government, following a request made to President Reuven Rivlin.",
+   "human_span": false,
+   "proof": [
+    "claim 'two weeks' but evidence says '42 days', which is 6 week (67% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "A recent poll shows that 91% of Turks do not believe that the events of 1915, when 1.5 million ethnic Armenians were killed under the Ottoman Empire, were genocide.",
+   "human_span": false,
+   "proof": [
+    "claim '91%' but evidence says 'one percent' (9000% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "According to a recent poll, 91% of Turks do not believe that the events of 1915 were genocidal, and the Turkish government disputes Armenia's count of the numbers killed.",
+   "human_span": false,
+   "proof": [
+    "claim '91%' but evidence says 'one percent' (9000% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "The eclipse was visible across the nation but only lasted three minutes on the East Coast due to sunrise.",
+   "human_span": true,
+   "proof": [
+    "claim 'three minutes' but evidence says 'four minutes' (25% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "A 32-year-old Massachusetts man, Carlos Colina, faces murder charges after human remains were found in a duffel bag and later identified as those of a 26-year-old man, Jonathan Camilien.",
+   "human_span": false,
+   "proof": [
+    "claim '26-year' but evidence says '32-year' (19% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Peterson was suspended in November due to allegations he disciplined his 4-year-old son with a \"switch\" or thin stick.",
+   "human_span": false,
+   "proof": [
+    "claim '4-year' but evidence says '30-year' (87% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Adrian Peterson, a Minnesota Vikings running back, will be reinstated to the NFL on Friday after serving a 15-month suspension for disciplining his 4-year-old son with a switch.",
+   "human_span": true,
+   "proof": [
+    "claim '4-year' but evidence says '30-year' (87% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "The NFL will reinstate Adrian Peterson, the Minnesota Vikings running back, on Friday, after he was suspended last year for disciplining his four-year-old son with a switch.",
+   "human_span": false,
+   "proof": [
+    "claim 'four-year' but evidence says '30-year' (87% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Two men, one 21-year-old Ronald Williams and a 15-year-old, were arrested for assault after they beat a 43-year-old man on a MetroLink train in St.",
+   "human_span": false,
+   "proof": [
+    "claim '21-year' but evidence says '15-year' (40% difference)",
+    "claim '43-year' but evidence says '15-year' (187% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Kim Bok-dong, an 89 year old Korean who was forced into sexual slavery by the Japanese army during World War II, is using her remaining time to share her story and to demand an apology from Japan.",
+   "human_span": false,
+   "proof": [
+    "claim '89 year' but evidence says '14-year' (536% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Kim Bok-dong, an 89-year-old survivor of Japanese military sexual slavery during World War Two, is determined to share her story before she dies.",
+   "human_span": false,
+   "proof": [
+    "claim '89-year' but evidence says '14-year' (536% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Kim Bok-dong, an 89-year-old woman from South Korea, shares her harrowing experience as a sex slave of the Japanese military during World War II.",
+   "human_span": false,
+   "proof": [
+    "claim '89-year' but evidence says '14-year' (536% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Kim Bok-dong, an 89-year-old Korean woman, shared her harrowing experiences as a former sex slave of the Japanese army during World War II.",
+   "human_span": false,
+   "proof": [
+    "claim '89-year' but evidence says '14-year' (536% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Kim Bok-dong, an 89-year-old Korean woman, is a survivor of Japan's military sex slavery program during WWII.",
+   "human_span": false,
+   "proof": [
+    "claim '89-year' but evidence says '14-year' (536% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Mui Thomas, a 22 year old Hong Kong woman who suffers from the rare genetic condition, Harlequin ichthyosis, is embarking on a career as a public speaker to educate and inspire others about the challenges of looking \"visibly different\".",
+   "human_span": false,
+   "proof": [
+    "claim '22 year' but evidence says 'half years' (4300% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Mui Thomas, a 22-year-old woman from Hong Kong, has been living with a rare genetic condition called Harlequin ichthyosis since birth.",
+   "human_span": false,
+   "proof": [
+    "claim '22-year' but evidence says 'half years' (4300% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Mui Thomas, a 22-year-old woman from Hong Kong, has a rare genetic condition called Harlequin ichthyosis that causes her skin to be thick, dry, and scaly.",
+   "human_span": false,
+   "proof": [
+    "claim '22-year' but evidence says 'half years' (4300% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Mui Thomas, a 22-year-old woman from Hong Kong, was born with Harlequin ichthyosis, a rare genetic condition that makes her skin extremely thick and dry.",
+   "human_span": false,
+   "proof": [
+    "claim '22-year' but evidence says 'half years' (4300% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Meet Mui Thomas, a 22-year-old woman from Hong Kong who was born with Harlequin ichthyosis, a rare genetic condition that causes her skin to be dry, thick, and flaky, resembling fish scales.",
+   "human_span": false,
+   "proof": [
+    "claim '22-year' but evidence says 'half years' (4300% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Doctors say she has a 85% chance of survival with treatment, but only a 20% chance without it.",
+   "human_span": true,
+   "proof": [
+    "claim '20%' but evidence says '85%' (76% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Despite having muscular dystrophy, Maickel Melamed, a Venezuelan native, completed the Boston Marathon in 26.2 hours, the last participant to cross the finish line.",
+   "human_span": true,
+   "proof": [
+    "claim '26.2 hours' but evidence says '20 hours' (31% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Lifetime TV is planning a follow-up to its \u201cUnauthorized Saved By the Bell\u201d movie with a behind-the-scenes look at 90s comedy \u201cFull House\u201d.",
+   "human_span": false,
+   "proof": [
+    "claim '90s' but evidence says 'two-hour', which is 7.2e+03 s (99% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Car manufacturers are increasingly developing vehicles that cater to Chinese preferences, such as SUVs, which saw a 33% increase in sales last year.",
+   "human_span": true,
+   "proof": [
+    "claim '33%' but evidence says '7%' (371% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Scientists have extracted DNA from a Neanderthal known as the Altamura Man, who fell into a well in southern Italy between 128,000 and 187,000 years ago.",
+   "human_span": false,
+   "proof": [
+    "claim '187,000 years' but evidence says '150,000 years' (25% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Jim Clark, who has been brought in to review the case, said that Robert Bates, the 73-year-old deputy, \"inadvertently\" shot Harris.",
+   "human_span": false,
+   "proof": [
+    "claim '73-year' but evidence says '21-year' (248% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "The defense also emphasizes that Tsarnaev was only 19 years old at the time of the bombing and was failing out of college, suggesting that he was not fully radicalized.",
+   "human_span": false,
+   "proof": [
+    "claim '19 years' but evidence says '26-year' (27% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "One surviving comfort woman, 88-year-old Yong Soo Lee, will be present at the address and hopes that Abe will provide a sincere and definitive apology.",
+   "human_span": true,
+   "proof": [
+    "claim '88-year' but evidence says '16-year' (450% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "The plane, which was set to make a brief stop in the country, has instead stayed put for over two weeks, testing the patience of the pilots and crew.",
+   "human_span": false,
+   "proof": [
+    "claim 'two weeks' but evidence says '12 years', which is 626 week (100% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "The plane, which is on a five-month journey covering 35,000 km, has been stuck in Chongqing for over two weeks, with the pilots taking turns flying the single-seater aircraft.",
+   "human_span": false,
+   "proof": [
+    "claim 'two weeks' but evidence says '12 years', which is 626 week (100% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "The plane, which has already flown through Oman, India, and Myanmar, has been delayed for over two weeks and is currently stuck in Chongqing.",
+   "human_span": false,
+   "proof": [
+    "claim 'two weeks' but evidence says '12 years', which is 626 week (100% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "The verdict marks a stunning fall from grace for Hernandez, who was a rising star in the NFL just four years ago, signing a $40 million contract extension with the Patriots.",
+   "human_span": false,
+   "proof": [
+    "claim 'four years' but evidence says 'two years' (100% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "The replica was built over the past 15 years using traditional methods, and features a coppered bottom that allows it to move faster through the water.",
+   "human_span": true,
+   "proof": [
+    "claim '15 years' but evidence says '150 years' (90% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "Federal agents seized over $12 million worth of drugs in just three days at international bridges in Texas, including 9,426 pounds of methamphetamine hidden among jalapeno peppers and 100 pounds of cocaine and methamphetamine found in vehicle compartments.",
+   "human_span": true,
+   "proof": [
+    "claim '9,426 pounds' but evidence says '100.81 pounds' (9250% difference)"
+   ]
+  },
+  {
+   "task": "Summary",
+   "sentence": "The largest seizure was over 1,200 pounds of methamphetamine hidden among jalapeno peppers, valued at $10.7 million.",
+   "human_span": false,
+   "proof": [
+    "claim '1,200 pounds' but evidence says '100.81 pounds' (1090% difference)"
+   ]
+  }
+ ]
+}

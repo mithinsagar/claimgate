@@ -38,10 +38,13 @@ def delucionqa():
     top = headline(d)["system"]
     rows = [(f"{k} (paper)", v, None, False) for k, v in d["published_test_macro_f1"].items()]
     for r in d["results"]:
-        if r["system"].startswith("ClaimGate without") or r["system"].startswith("ClaimGate with "):
-            continue  # ablations live in the table
+        name = r["system"]
+        skip = ("ClaimGate without", "ClaimGate with ", "ClaimGate, no fine-tuned", "ClaimGate variant: equal-weight", "Fine-tuned verifier alone")
+        if name.startswith(skip):
+            continue  # ablations and duplicates live in the table
         ci = r.get("test_ci95")
-        rows.append((r["system"], 100 * r["test"]["macro_f1"], (100 * ci[0], 100 * ci[1]) if ci else None, r["system"] == top))
+        label = r["system"].replace(" (not selected on dev)", ", not selected")
+        rows.append((label, 100 * r["test"]["macro_f1"], (100 * ci[0], 100 * ci[1]) if ci else None, r["system"] == top))
     rows.sort(key=lambda x: x[1])
     fig, ax = plt.subplots(figsize=(9, 0.42 * len(rows) + 1.1), dpi=200)
     fig.patch.set_facecolor(SURFACE)
@@ -69,7 +72,7 @@ def quantstress():
     kinds = ["original", "converted", "value_shift", "unit_swap", "negation", "condition_swap"]
     labels = ["original\n(should pass)", "unit converted\n(should pass)", "value shifted", "unit swapped", "negation flipped", "condition swapped"]
     colors = {"NLI zero-shot": SERIES[1], "HHEM-2.1-Open zero-shot": SERIES[2], "MiniCheck-Flan-T5-Large zero-shot": SERIES[3],
-              "ClaimGate, no fine-tuned network": SERIES[4], "ClaimGate": SERIES[0]}
+              "ClaimGate": SERIES[0], "ClaimGate variant: fine-tuned verifier": SERIES[4]}
     systems = [s for s in colors if s in d["flag_rate"]]
     fig, ax = plt.subplots(figsize=(10, 4.6), dpi=200)
     fig.patch.set_facecolor(SURFACE)
