@@ -101,9 +101,19 @@ def main() -> None:
             best_C = max(dev_auc, key=dev_auc.get)
             results_extra["adaptation_regularisation_dev_auc"] = dev_auc
             results_extra["adaptation_C"] = best_C
-            for n in (100, 300, 600):
-                part = rt_train[rt_train.uid.isin(uids[:n])]
-                m = SentenceModel.fit(part, feats, C=best_C)
+            sets = [(n, rt_train[rt_train.uid.isin(uids[:n])], best_C) for n in (100, 300, 600)]
+            all_path = fdir / "ragtruth_train_all_deberta-v3-large-nli.parquet"
+            if all_path.exists():
+                rt_all = load_scores("ragtruth_train_all", pd.read_parquet(all_path))
+                if all(c in rt_all and rt_all[c].notna().all() for c in feats):
+                    auc_all = {}
+                    for C in (0.5, 0.05):
+                        a = answer_scores(dev, SentenceModel.fit(rt_all, feats, C=C).predict_proba(dev))
+                        auc_all[C] = float(roc_auc_score(a.label, a.score))
+                    results_extra["adaptation_all_regularisation_dev_auc"] = auc_all
+                    sets.append((rt_all.uid.nunique(), rt_all, max(auc_all, key=auc_all.get)))
+            for n, part, C_n in sets:
+                m = SentenceModel.fit(part, feats, C=C_n)
 
                 def adapted(d, m=m, g=g):
                     r = m.predict_proba(d)
