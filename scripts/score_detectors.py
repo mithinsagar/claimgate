@@ -19,7 +19,7 @@ from claimgate.ragtruth import load_ragtruth_qa  # noqa: E402
 from claimgate.stress import as_example, generate, train_augmentation  # noqa: E402
 from claimgate.text import context_for_nli  # noqa: E402
 
-SETS = ["dev", "test", "train", "train_aug", "quantstress", "ragtruth_dev300", "ragtruth_test"]
+SETS = ["dev", "test", "train", "train_aug", "quantstress", "ragtruth_dev300", "ragtruth_test", "ragtruth_train600"]
 
 
 def load_set(name: str):

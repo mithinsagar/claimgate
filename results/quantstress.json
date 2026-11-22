@@ -1,76 +1,76 @@
 {
  "counts": {
   "original": 400,
-  "converted": 149,
-  "value_shift": 149,
-  "unit_swap": 149,
+  "converted": 144,
+  "value_shift": 144,
+  "unit_swap": 144,
   "negation": 400,
   "condition_swap": 400
  },
  "flag_rate": {
   "NLI zero-shot, no unit canonicalisation": {
-   "original": 0.055,
-   "converted": 0.21476510067114093,
-   "value_shift": 0.697986577181208,
-   "unit_swap": 0.40939597315436244,
-   "negation": 0.6975,
-   "condition_swap": 0.5425
+   "original": 0.07,
+   "converted": 0.19444444444444445,
+   "value_shift": 0.7083333333333334,
+   "unit_swap": 0.4166666666666667,
+   "negation": 0.68,
+   "condition_swap": 0.5575
   },
   "NLI zero-shot": {
-   "original": 0.055,
-   "converted": 0.06711409395973154,
-   "value_shift": 0.6308724832214765,
-   "unit_swap": 0.4563758389261745,
-   "negation": 0.6975,
-   "condition_swap": 0.5425
+   "original": 0.07,
+   "converted": 0.1388888888888889,
+   "value_shift": 0.7083333333333334,
+   "unit_swap": 0.4166666666666667,
+   "negation": 0.68,
+   "condition_swap": 0.5575
   },
   "HHEM-2.1-Open zero-shot": {
-   "original": 0.0775,
-   "converted": 0.5704697986577181,
-   "value_shift": 0.48322147651006714,
-   "unit_swap": 0.2953020134228188,
-   "negation": 0.32,
-   "condition_swap": 0.09
+   "original": 0.0975,
+   "converted": 0.5625,
+   "value_shift": 0.3958333333333333,
+   "unit_swap": 0.2777777777777778,
+   "negation": 0.2725,
+   "condition_swap": 0.0925
   },
   "MiniCheck-Flan-T5-Large zero-shot": {
-   "original": 0.0875,
-   "converted": 0.6778523489932886,
-   "value_shift": 0.8456375838926175,
-   "unit_swap": 0.44966442953020136,
-   "negation": 0.8775,
-   "condition_swap": 0.6525
+   "original": 0.0825,
+   "converted": 0.5486111111111112,
+   "value_shift": 0.8263888888888888,
+   "unit_swap": 0.4444444444444444,
+   "negation": 0.885,
+   "condition_swap": 0.6725
   },
   "Fine-tuned verifier alone": {
-   "original": 0.08,
-   "converted": 0.48322147651006714,
-   "value_shift": 0.9731543624161074,
-   "unit_swap": 0.9664429530201343,
-   "negation": 0.9875,
-   "condition_swap": 0.955
+   "original": 0.09,
+   "converted": 0.2847222222222222,
+   "value_shift": 0.9722222222222222,
+   "unit_swap": 0.9652777777777778,
+   "negation": 0.98,
+   "condition_swap": 0.96
   },
   "ClaimGate, no fine-tuned network": {
-   "original": 0.03,
-   "converted": 0.053691275167785234,
-   "value_shift": 0.825503355704698,
-   "unit_swap": 0.7919463087248322,
-   "negation": 0.605,
-   "condition_swap": 0.405
+   "original": 0.0475,
+   "converted": 0.09722222222222222,
+   "value_shift": 0.9652777777777778,
+   "unit_swap": 0.9166666666666666,
+   "negation": 0.6425,
+   "condition_swap": 0.47
   },
   "ClaimGate": {
-   "original": 0.03,
-   "converted": 0.053691275167785234,
-   "value_shift": 0.825503355704698,
-   "unit_swap": 0.7919463087248322,
-   "negation": 0.605,
-   "condition_swap": 0.405
+   "original": 0.0475,
+   "converted": 0.09722222222222222,
+   "value_shift": 0.9652777777777778,
+   "unit_swap": 0.9166666666666666,
+   "negation": 0.6425,
+   "condition_swap": 0.47
   },
   "ClaimGate variant: fine-tuned verifier": {
-   "original": 0.08,
-   "converted": 0.4899328859060403,
+   "original": 0.09,
+   "converted": 0.2916666666666667,
    "value_shift": 1.0,
-   "unit_swap": 0.9932885906040269,
-   "negation": 0.9875,
-   "condition_swap": 0.955
+   "unit_swap": 1.0,
+   "negation": 0.9825,
+   "condition_swap": 0.96
   }
  }
 }

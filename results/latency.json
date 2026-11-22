@@ -1,14 +1,14 @@
 {
  "ClaimGate, no fine-tuned network": {
   "answers": 60,
-  "median_s": 0.5144010205112863,
-  "p90_s": 1.4242026249994524,
-  "median_ms_per_claim": 149.67669445832144
+  "median_s": 1.1736496875091689,
+  "p90_s": 3.802285958023276,
+  "median_ms_per_claim": 376.5990696325995
  },
  "ClaimGate": {
   "answers": 60,
-  "median_s": 0.5031370414944831,
-  "p90_s": 1.4139960419852287,
-  "median_ms_per_claim": 148.42140279264032
+  "median_s": 1.1357368960016174,
+  "p90_s": 3.846275624993723,
+  "median_ms_per_claim": 323.18589937737363
  }
 }

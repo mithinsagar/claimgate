@@ -1,0 +1,12 @@
+{
+ "n_dev_sentences_split": 209,
+ "dev_sentence": {
+  "threshold": 0.2736,
+  "macro_f1": 0.8240848759657502
+ },
+ "dev_atomic": {
+  "threshold": 0.5096,
+  "macro_f1": 0.8044471923510058
+ },
+ "adopt": false
+}

@@ -1,6 +1,6 @@
 PY ?= .venv/bin/python
 
-.PHONY: setup data models features verifier detectors evaluate stress ragtruth quantity-checker figures all serve test lint
+.PHONY: setup data models features verifier detectors evaluate stress ragtruth quantity-checker atomic figures all serve test lint
 
 setup:
 	python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && $(PY) -m nltk.downloader -q punkt punkt_tab
@@ -13,7 +13,7 @@ models:      ## DeBERTa-v3-large NLI, bge-small, HHEM-2.1-Open (+ Flan-T5-base t
 	$(PY) scripts/fetch_models.py nli embed hhem flan-t5-base minicheck
 
 features:    ## zero-shot NLI and grounding features for train, rule-made contradictions, dev, test
-	$(PY) scripts/build_features.py --splits dev test train train_aug
+	$(PY) scripts/build_features.py --splits dev test train train_aug ragtruth_train600
 
 verifier:    ## cross-fitted fine-tuning (about 1.5 h on an M5) and its scores; one process per fold so MPS memory is released
 	for k in 0 1 2; do $(PY) scripts/train_verifier.py --only-fold $$k || exit 1; done
@@ -34,6 +34,9 @@ ragtruth:
 
 quantity-checker:
 	$(PY) scripts/eval_quantity_checker.py
+
+atomic:      ## needs mlx, mlx-lm and the Qwen2.5-7B weights (scripts/fetch_models.py llm)
+	$(PY) scripts/atomic_claims.py --stage dev
 
 figures:
 	$(PY) scripts/make_figures.py
