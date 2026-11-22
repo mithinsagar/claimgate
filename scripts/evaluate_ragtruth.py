@@ -18,7 +18,7 @@ from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from claimgate.data import ROOT  # noqa: E402
-from claimgate.decide import answer_scores, contradiction_gate  # noqa: E402
+from claimgate.decide import SentenceModel, answer_scores, contradiction_gate  # noqa: E402
 from claimgate.features import sentence_features  # noqa: E402
 from claimgate.nli import NLI  # noqa: E402
 from claimgate.pipeline import FULL_MODEL_PATH, MODEL_PATH  # noqa: E402
@@ -77,11 +77,31 @@ def main() -> None:
             def risk(d, g=g, q=quantity_override):
                 r = g["model"].predict_proba(d)
                 if use_gate:
-                    r = np.where(contradiction_gate(d), 1.0, r)
+                    r = np.where(contradiction_gate(d, g.get("contra")), 1.0, r)
                 if q:
                     r = np.where((d.q_mismatch + d.q_unit_mismatch).to_numpy() > 0, 1.0, r)
                 return r
             systems[name + label] = (risk(dev), risk(test), g["threshold"])
+
+    # domain adaptation: retrain only the decision layer on RAGTruth train responses (disjoint from the 300 used for the
+    # threshold), same features as the shipped model; learning curve over 100 / 300 / 600 responses
+    adapt_path = fdir / "ragtruth_train600_deberta-v3-large-nli.parquet"
+    if adapt_path.exists() and Path(FULL_MODEL_PATH).exists():
+        g = joblib.load(FULL_MODEL_PATH)
+        feats = list(g["model"].features)
+        rt_train = load_scores("ragtruth_train600", pd.read_parquet(adapt_path))
+        if all(c in rt_train and rt_train[c].notna().all() for c in feats):
+            uids = list(dict.fromkeys(rt_train.uid))
+            for n in (100, 300, 600):
+                part = rt_train[rt_train.uid.isin(uids[:n])]
+                m = SentenceModel.fit(part, feats)
+
+                def adapted(d, m=m, g=g):
+                    r = m.predict_proba(d)
+                    if use_gate:
+                        r = np.where(contradiction_gate(d, g.get("contra")), 1.0, r)
+                    return np.where((d.q_mismatch + d.q_unit_mismatch).to_numpy() > 0, 1.0, r)
+                systems[f"ClaimGate adapted on {n} RAGTruth responses"] = (adapted(dev), adapted(test), None)
 
     results = {"n_test": int(len(y_test)), "hallucinated": int(y_test.sum()), "systems": {}}
     for name, (r_dev, r_test, dqa_thr) in systems.items():

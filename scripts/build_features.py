@@ -26,7 +26,14 @@ def main() -> None:
     tag = Path(args.model).name
     for split in args.splits:
         t0 = time.time()
-        examples = train_augmentation() if split == "train_aug" else load_delucionqa(split)
+        if split == "train_aug":
+            examples = train_augmentation()
+        elif split.startswith("ragtruth_"):
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from score_detectors import load_set
+            examples = load_set(split)
+        else:
+            examples = load_delucionqa(split)
         df = sentence_features(examples, nli)
         if split == "train_aug":
             df["source_uid"] = [e.meta["source_uid"] for e in examples for _ in e.sentences]

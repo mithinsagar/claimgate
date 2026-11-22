@@ -32,14 +32,14 @@ def _evidence(source_info: dict) -> str:
     return "\n".join(p.strip() for p in passages if p.strip())
 
 
-def load_ragtruth_qa(split: str, limit: int | None = None, seed: int = 0) -> list[Example]:
+def load_ragtruth_qa(split: str, limit: int | None = None, seed: int = 0, exclude: set[str] | None = None) -> list[Example]:
     sources = {}
     for line in open(RT / "source_info.jsonl", encoding="utf-8"):
         s = json.loads(line)
         if s["task_type"] == "QA":
             sources[s["source_id"]] = s
     rows = [r for r in (json.loads(line) for line in open(RT / "response.jsonl", encoding="utf-8"))
-            if r["source_id"] in sources and r["split"] == split]
+            if r["source_id"] in sources and r["split"] == split and f"rt{r['id']}" not in (exclude or set())]
     if limit:
         rows = random.Random(seed).sample(rows, min(limit, len(rows)))
     out = []
@@ -56,3 +56,14 @@ def load_ragtruth_qa(split: str, limit: int | None = None, seed: int = 0) -> lis
                            sentences=[s for s, _, _ in sents], sentence_labels=labels, label=int(bool(r["labels"])),
                            meta={"evidence": evidence, "model": r["model"]}))
     return out
+
+
+def adaptation_split(n: int = 600) -> tuple[list[Example], list[Example]]:
+    """RAGTruth QA train responses for domain adaptation: (training responses, the 300 used to pick thresholds).
+
+    The threshold set is the same 300 responses used everywhere else; the training responses are drawn from the rest of
+    the train split, so the two never overlap and the 900 test responses are never touched.
+    """
+    dev = load_ragtruth_qa("train", limit=300)
+    train = load_ragtruth_qa("train", limit=n, seed=1, exclude={e.uid for e in dev})
+    return train, dev

@@ -33,6 +33,9 @@ def load_set(name: str):
         return load_ragtruth_qa("train", limit=300)
     if name == "ragtruth_test":
         return load_ragtruth_qa("test")
+    if name == "ragtruth_train600":
+        from claimgate.ragtruth import adaptation_split
+        return adaptation_split(600)[0]
     raise KeyError(name)
 
 
