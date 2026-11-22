@@ -228,12 +228,14 @@ make detectors      # HHEM and MiniCheck scores for every set                   
 make evaluate       # model selection on train, thresholds on dev, test once -> results/delucionqa.*
 make stress ragtruth quantity-checker figures
 make atomic         # atomic-claim splitting with the local LLM (dev; test only if adopted)
-make test           # 41 tests: unit, property-based (Hypothesis), API; no model weights needed
+make test           # 42 tests: unit, property-based (Hypothesis), API; no model weights needed
 ```
 
 The LLM-judge baseline and the atomic-claims experiment need `pip install mlx mlx-lm` (Apple silicon) and
 `python scripts/fetch_models.py llm`. CI runs the unit tests, a Docker build with a health check, and an end-to-end
-test of the service with real weights (a tiny NLI model plus the real HHEM and bge-small), cached between runs.
+test of the service with real weights (a tiny NLI model plus the real HHEM and bge-small), cached between runs. Its
+first run caught a real bug: concurrent requests crashed because the NLI cache's SQLite connection belonged to one
+thread.
 
 ## Run the service
 
