@@ -1,5 +1,7 @@
 # ClaimGate
 
+[![ci](https://github.com/mithinsagar/claimgate/actions/workflows/ci.yml/badge.svg)](https://github.com/mithinsagar/claimgate/actions/workflows/ci.yml)
+
 ClaimGate checks an answer from a retrieval-augmented assistant against the documents that were retrieved for it, one
 claim at a time, before the answer reaches a user. Numbers and units are checked with arithmetic; everything else by
 entailment models and a calibrated risk model. Every verdict comes with its proof and the evidence it was judged
