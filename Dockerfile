@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 COPY requirements.txt .
 RUN pip install torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install -r requirements.txt \
-    && python -m nltk.downloader -q -d /usr/local/share/nltk_data punkt punkt_tab
+    && python -c "import nltk; [nltk.download(p, download_dir='/usr/local/share/nltk_data', quiet=True, raise_on_error=True) for p in ('punkt', 'punkt_tab')]" \
+    && python -c "from nltk import word_tokenize; assert word_tokenize('Check it.') == ['Check', 'it', '.']"
 
 COPY src/ src/
 COPY scripts/fetch_models.py scripts/

@@ -18,7 +18,7 @@ jobs:
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements-dev.txt
-          python -m nltk.downloader -q punkt punkt_tab
+          python -c "import nltk; [nltk.download(p, quiet=True, raise_on_error=True) for p in ('punkt', 'punkt_tab')]"
       - name: Lint
         run: ruff check src scripts tests
       - name: Test
@@ -36,6 +36,7 @@ jobs:
           for i in $(seq 1 30); do curl -fs localhost:8060/health && break; sleep 2; done
           curl -fs localhost:8060/health | grep -q '"ok"'
           curl -fs localhost:8060/ | grep -q ClaimGate
+          docker exec cg python -c "from claimgate.baselines import bosch_tokens; from claimgate.quantities import check; assert bosch_tokens('Check it.') == ['check', 'it', '.']; assert check('Drive at 70 mph.', 'Do not drive above 50 mph.')[0].status == 'mismatch'"
           docker rm -f cg
 
   integration:
@@ -50,7 +51,7 @@ jobs:
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements-dev.txt
-          python -m nltk.downloader -q punkt punkt_tab
+          python -c "import nltk; [nltk.download(p, quiet=True, raise_on_error=True) for p in ('punkt', 'punkt_tab')]"
       - uses: actions/cache@v6
         with:
           path: |

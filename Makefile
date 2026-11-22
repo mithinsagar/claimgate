@@ -3,7 +3,7 @@ PY ?= .venv/bin/python
 .PHONY: setup data models features verifier detectors evaluate stress ragtruth quantity-checker atomic figures all serve test lint
 
 setup:
-	python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && $(PY) -m nltk.downloader -q punkt punkt_tab
+	python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && $(PY) -c "import nltk; [nltk.download(p, quiet=True, raise_on_error=True) for p in ('punkt', 'punkt_tab')]"
 
 data:        ## DelucionQA ids + RAGBench passages + manual text -> data/delucionqa/*.jsonl (docs/data.md)
 	$(PY) scripts/get_data.py

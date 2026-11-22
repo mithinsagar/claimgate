@@ -246,6 +246,9 @@ CLAIMGATE_API_KEY=... make serve              # require the X-API-Key header
 docker build -t claimgate . && docker run -p 8060:8060 -v "$PWD/models:/app/models" claimgate
 ```
 
+In Docker the models run on CPU (float32): about 2 s per answer on 4 virtual CPUs after a 16 s first request that loads
+the models, with the same verdicts as on the Apple GPU.
+
 Open `http://localhost:8060/#example` to run the example above.
 
 ## Limitations

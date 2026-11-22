@@ -52,7 +52,8 @@ class Verifier:
             raise FileNotFoundError(f"no verifier folds in {root}")
         self.device = device or default_device()
         self.tok = AutoTokenizer.from_pretrained(self.dirs[0])
-        self.models = [AutoModelForSequenceClassification.from_pretrained(d, dtype=torch.float16).eval().to(self.device) for d in self.dirs]
+        dtype = torch.float32 if self.device == "cpu" else torch.float16
+        self.models = [AutoModelForSequenceClassification.from_pretrained(d, dtype=dtype).eval().to(self.device) for d in self.dirs]
         self.batch_size = batch_size
 
     @torch.inference_mode()

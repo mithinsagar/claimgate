@@ -30,7 +30,9 @@ class NLI:
         self.model_dir, self.verbose = Path(model_dir), verbose
         self.batch_size, self.max_length = batch_size, max_length
         self.tok = AutoTokenizer.from_pretrained(self.model_dir)
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_dir).eval().to(device())
+        # the checkpoint is stored in float16; CPUs (e.g. the Docker image) need float32, GPUs run the stored precision
+        dtype = torch.float32 if device() == "cpu" else "auto"
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_dir, dtype=dtype).eval().to(device())
         labels = {v.lower(): int(k) for k, v in self.model.config.id2label.items()}
         self.order = [labels["entailment"], labels.get("neutral", labels.get("not_entailment")), labels.get("contradiction", labels.get("not_entailment"))]
         cache = cache or ROOT / "artifacts" / f"nli_cache_{self.model_dir.name}.sqlite"
